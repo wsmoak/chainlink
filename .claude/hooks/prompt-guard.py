@@ -116,11 +116,46 @@ def detect_languages():
     found = set()
     cwd = os.getcwd()
 
-    # Quick scan of src/ and current directory
+    # Check for project config files first (more reliable than scanning)
+    config_indicators = {
+        'Cargo.toml': 'Rust',
+        'package.json': 'JavaScript',
+        'tsconfig.json': 'TypeScript',
+        'pyproject.toml': 'Python',
+        'requirements.txt': 'Python',
+        'go.mod': 'Go',
+        'pom.xml': 'Java',
+        'build.gradle': 'Java',
+        'Gemfile': 'Ruby',
+        'composer.json': 'PHP',
+        'Package.swift': 'Swift',
+    }
+
+    # Check cwd and immediate subdirs for config files
+    check_dirs = [cwd]
+    try:
+        for entry in os.listdir(cwd):
+            subdir = os.path.join(cwd, entry)
+            if os.path.isdir(subdir) and not entry.startswith('.'):
+                check_dirs.append(subdir)
+    except (PermissionError, OSError):
+        pass
+
+    for check_dir in check_dirs:
+        for config_file, lang in config_indicators.items():
+            if os.path.exists(os.path.join(check_dir, config_file)):
+                found.add(lang)
+
+    # Also scan for source files in src/ directories
     scan_dirs = [cwd]
     src_dir = os.path.join(cwd, 'src')
     if os.path.isdir(src_dir):
         scan_dirs.append(src_dir)
+    # Check nested project src dirs too
+    for check_dir in check_dirs:
+        nested_src = os.path.join(check_dir, 'src')
+        if os.path.isdir(nested_src):
+            scan_dirs.append(nested_src)
 
     for scan_dir in scan_dirs:
         try:

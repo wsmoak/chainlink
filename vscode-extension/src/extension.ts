@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { DaemonManager } from './daemon';
 import { validateBinaries } from './platform';
 
@@ -24,6 +25,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         return;
     }
+
+    // Add binary directory to PATH for all terminals and child processes
+    const binDir = path.join(context.extensionPath, 'bin');
+    addToPath(context, binDir);
+    outputChannel.appendLine(`Added to PATH: ${binDir}`);
 
     // Get workspace folder
     const workspaceFolder = getWorkspaceFolder();
@@ -299,5 +305,30 @@ function handleConfigChange(): void {
                 updateStatusBar(false);
             });
         }
+    }
+}
+
+/**
+ * Adds the chainlink binary directory to PATH for all VS Code terminals and tasks.
+ * Uses VS Code's EnvironmentVariableCollection API which persists across sessions.
+ * This allows `chainlink` commands to work in terminals and from AI agents.
+ */
+function addToPath(context: vscode.ExtensionContext, binDir: string): void {
+    const envCollection = context.environmentVariableCollection;
+
+    // Clear any stale entries first
+    envCollection.delete('PATH');
+
+    // Prepend our bin directory to PATH
+    // This works cross-platform: Windows uses `;` separator, Unix uses `:`
+    const separator = process.platform === 'win32' ? ';' : ':';
+    envCollection.prepend('PATH', binDir + separator);
+
+    // Make the modification persistent across VS Code restarts
+    envCollection.persistent = true;
+
+    // Also set for Windows Path (case variation)
+    if (process.platform === 'win32') {
+        envCollection.prepend('Path', binDir + separator);
     }
 }

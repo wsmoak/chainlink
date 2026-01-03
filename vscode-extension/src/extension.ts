@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import { DaemonManager } from './daemon';
 import { validateBinaries, resolveBinaryPath } from './platform';
 
@@ -96,6 +97,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
         })
     );
+
+    // Check if Python is available for Claude Code hooks
+    if (workspaceFolder) {
+        checkPythonForHooks(workspaceFolder, outputChannel);
+    }
 
     outputChannel.appendLine('Chainlink extension activated');
 }
@@ -444,5 +450,64 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
     } catch (err) {
         output.appendLine(`Failed to create fallback directory: ${err}`);
         return false;
+    }
+}
+
+/**
+ * Checks if Python is available when Claude Code hooks are configured.
+ * Shows a warning if hooks exist but Python cannot be found.
+ */
+function checkPythonForHooks(workspaceFolder: string, output: vscode.OutputChannel): void {
+    // Check if .claude/hooks directory exists with Python scripts
+    const claudeHooksDir = path.join(workspaceFolder, '.claude', 'hooks');
+    if (!fs.existsSync(claudeHooksDir)) {
+        return; // No hooks directory, nothing to check
+    }
+
+    // Look for Python files in hooks directory
+    let hasPythonHooks = false;
+    try {
+        const files = fs.readdirSync(claudeHooksDir);
+        hasPythonHooks = files.some(f => f.endsWith('.py'));
+    } catch {
+        return; // Can't read directory, skip check
+    }
+
+    if (!hasPythonHooks) {
+        return; // No Python hooks, nothing to check
+    }
+
+    // Check if Python is available
+    const pythonCommands = process.platform === 'win32'
+        ? ['python', 'python3', 'py']
+        : ['python3', 'python'];
+
+    let pythonFound = false;
+    for (const cmd of pythonCommands) {
+        try {
+            execSync(`${cmd} --version`, {
+                stdio: 'pipe',
+                timeout: 5000
+            });
+            pythonFound = true;
+            output.appendLine(`Python found: ${cmd}`);
+            break;
+        } catch {
+            // Try next command
+        }
+    }
+
+    if (!pythonFound) {
+        output.appendLine('WARNING: Python not found but Claude Code hooks require it');
+        vscode.window.showWarningMessage(
+            'Chainlink: Python is required for Claude Code hooks but was not found. ' +
+            'Install Python and ensure it\'s in your PATH for hooks to work.',
+            'Install Python',
+            'Dismiss'
+        ).then(selection => {
+            if (selection === 'Install Python') {
+                vscode.env.openExternal(vscode.Uri.parse('https://www.python.org/downloads/'));
+            }
+        });
     }
 }

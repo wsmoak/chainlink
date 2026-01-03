@@ -203,6 +203,8 @@ All data is stored locally in `.chainlink/issues.db` (SQLite). No external servi
 
 Chainlink includes behavioral hooks for [Claude Code](https://claude.com/claude-code) that inject best practice reminders into AI sessions. These hooks help ensure Claude follows coding standards without requiring manual prompting.
 
+> **Requirement:** Python 3.6+ must be installed and available in your PATH for hooks to work. The VS Code extension will warn you if Python is not detected.
+
 ### What the Hooks Do
 
 The hooks are located in `.claude/hooks/` and configured in `.claude/settings.json`:

@@ -10,6 +10,10 @@ A simple, lean issue tracker for AI-assisted development, integrated directly in
 - **Cross-Platform**: Works on Windows, Linux, and macOS
 - **Agent-Agnostic**: Context provider script works with any AI coding assistant
 
+## Requirements
+
+- **Python 3.6+**: Required for Claude Code hooks to function. The extension will warn you if Python is not detected in your PATH.
+
 ## Installation
 
 1. Install from the VS Code Extensions Marketplace (search "Chainlink Issue Tracker")

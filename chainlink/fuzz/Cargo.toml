@@ -45,3 +45,17 @@ path = "fuzz_targets/fuzz_import.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_dependency_graph"
+path = "fuzz_targets/fuzz_dependency_graph.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_state_machine"
+path = "fuzz_targets/fuzz_state_machine.rs"
+test = false
+doc = false
+bench = false

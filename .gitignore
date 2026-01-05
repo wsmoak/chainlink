@@ -14,3 +14,8 @@ beads/
 .chainlink/session.json
 vscode-extension/bin/chainlink-linux
 vscode-extension/bin/chainlink-win.exe
+
+# Fuzz testing artifacts
+chainlink/fuzz/target/
+chainlink/fuzz/artifacts/
+chainlink/fuzz/corpus/

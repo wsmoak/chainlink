@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::models::{Comment, Issue, Session};
 
-const SCHEMA_VERSION: i32 = 6;
+const SCHEMA_VERSION: i32 = 7;
 
 pub struct Database {
     conn: Connection,
@@ -17,6 +17,26 @@ impl Database {
         let db = Database { conn };
         db.init_schema()?;
         Ok(db)
+    }
+
+    /// Execute a closure within a database transaction.
+    /// If the closure returns Ok, the transaction is committed.
+    /// If the closure returns Err, the transaction is rolled back.
+    pub fn transaction<T, F>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        self.conn.execute("BEGIN TRANSACTION", [])?;
+        match f() {
+            Ok(result) => {
+                self.conn.execute("COMMIT", [])?;
+                Ok(result)
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
     }
 
     fn init_schema(&self) -> Result<()> {
@@ -80,7 +100,7 @@ impl Database {
                     ended_at TEXT,
                     active_issue_id INTEGER,
                     handoff_notes TEXT,
-                    FOREIGN KEY (active_issue_id) REFERENCES issues(id)
+                    FOREIGN KEY (active_issue_id) REFERENCES issues(id) ON DELETE SET NULL
                 );
 
                 -- Time tracking
@@ -143,6 +163,26 @@ impl Database {
                 "ALTER TABLE issues ADD COLUMN parent_id INTEGER REFERENCES issues(id) ON DELETE CASCADE",
                 [],
             );
+
+            // Migration v7: Recreate sessions table with ON DELETE SET NULL for active_issue_id
+            // This ensures deleting an issue clears the session reference instead of failing
+            if version < 7 {
+                let _ = self.conn.execute_batch(
+                    r#"
+                    CREATE TABLE IF NOT EXISTS sessions_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        started_at TEXT NOT NULL,
+                        ended_at TEXT,
+                        active_issue_id INTEGER,
+                        handoff_notes TEXT,
+                        FOREIGN KEY (active_issue_id) REFERENCES issues(id) ON DELETE SET NULL
+                    );
+                    INSERT OR IGNORE INTO sessions_new SELECT * FROM sessions;
+                    DROP TABLE IF EXISTS sessions;
+                    ALTER TABLE sessions_new RENAME TO sessions;
+                    "#,
+                );
+            }
 
             self.conn
                 .execute(&format!("PRAGMA user_version = {}", SCHEMA_VERSION), [])?;
@@ -420,11 +460,49 @@ impl Database {
 
     // Dependencies
     pub fn add_dependency(&self, blocked_id: i64, blocker_id: i64) -> Result<bool> {
+        // Prevent self-blocking
+        if blocked_id == blocker_id {
+            anyhow::bail!("An issue cannot block itself");
+        }
+
+        // Check for circular dependencies before inserting
+        if self.would_create_cycle(blocked_id, blocker_id)? {
+            anyhow::bail!(
+                "Adding this dependency would create a circular dependency chain"
+            );
+        }
+
         let result = self.conn.execute(
             "INSERT OR IGNORE INTO dependencies (blocker_id, blocked_id) VALUES (?1, ?2)",
             params![blocker_id, blocked_id],
         )?;
         Ok(result > 0)
+    }
+
+    /// Check if adding blocker_id -> blocked_id would create a cycle.
+    /// A cycle exists if blocked_id can already reach blocker_id through existing dependencies.
+    fn would_create_cycle(&self, blocked_id: i64, blocker_id: i64) -> Result<bool> {
+        // If blocked_id can reach blocker_id, then adding blocker_id -> blocked_id creates a cycle
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![blocked_id];
+
+        while let Some(current) = stack.pop() {
+            if current == blocker_id {
+                return Ok(true); // Found a path from blocked_id to blocker_id
+            }
+
+            if visited.insert(current) {
+                // Get all issues that 'current' blocks (issues where current is the blocker)
+                let blocking = self.get_blocking(current)?;
+                for next in blocking {
+                    if !visited.contains(&next) {
+                        stack.push(next);
+                    }
+                }
+            }
+        }
+
+        Ok(false)
     }
 
     pub fn remove_dependency(&self, blocked_id: i64, blocker_id: i64) -> Result<bool> {
@@ -654,15 +732,17 @@ impl Database {
 
     /// Search issues by query string across titles, descriptions, and comments
     pub fn search_issues(&self, query: &str) -> Result<Vec<Issue>> {
-        let pattern = format!("%{}%", query);
+        // Escape SQL LIKE wildcards to prevent unintended pattern matching
+        let escaped = query.replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{}%", escaped);
         let mut stmt = self.conn.prepare(
             r#"
             SELECT DISTINCT i.id, i.title, i.description, i.status, i.priority, i.parent_id, i.created_at, i.updated_at, i.closed_at
             FROM issues i
             LEFT JOIN comments c ON i.id = c.issue_id
-            WHERE i.title LIKE ?1 COLLATE NOCASE
-               OR i.description LIKE ?1 COLLATE NOCASE
-               OR c.content LIKE ?1 COLLATE NOCASE
+            WHERE i.title LIKE ?1 ESCAPE '\' COLLATE NOCASE
+               OR i.description LIKE ?1 ESCAPE '\' COLLATE NOCASE
+               OR c.content LIKE ?1 ESCAPE '\' COLLATE NOCASE
             ORDER BY i.id DESC
             "#,
         )?;
@@ -2030,6 +2110,141 @@ mod proptest_tests {
             let results = db.search_issues("unique marker").unwrap();
             prop_assert!(results.len() >= 1);
             prop_assert!(results.iter().any(|i| i.title.contains("unique marker")));
+        }
+
+        /// Circular dependencies should be prevented
+        #[test]
+        fn prop_no_circular_deps(chain_len in 2usize..6) {
+            let (db, _dir) = setup_test_db();
+
+            // Create a chain of issues
+            let mut ids = Vec::new();
+            for i in 0..chain_len {
+                let id = db.create_issue(&format!("Issue {}", i), None, "medium").unwrap();
+                ids.push(id);
+            }
+
+            // Create a linear dependency chain: 0 <- 1 <- 2 <- ... <- n-1
+            for i in 0..chain_len - 1 {
+                db.add_dependency(ids[i], ids[i + 1]).unwrap();
+            }
+
+            // Trying to close the cycle (n-1 <- 0) should fail
+            let result = db.add_dependency(ids[chain_len - 1], ids[0]);
+            prop_assert!(result.is_err(), "Circular dependency should be rejected");
+        }
+
+        /// Deleting a parent should cascade to all children
+        #[test]
+        fn prop_cascade_deletes_children(child_count in 1usize..5) {
+            let (db, _dir) = setup_test_db();
+
+            // Create parent
+            let parent_id = db.create_issue("Parent", None, "medium").unwrap();
+
+            // Create children
+            let mut child_ids = Vec::new();
+            for i in 0..child_count {
+                let id = db.create_subissue(parent_id, &format!("Child {}", i), None, "low").unwrap();
+                child_ids.push(id);
+            }
+
+            // Verify children exist
+            let issues_before = db.list_issues(None, None, None).unwrap();
+            prop_assert_eq!(issues_before.len(), child_count + 1);
+
+            // Delete parent
+            db.delete_issue(parent_id).unwrap();
+
+            // All children should be gone too
+            let issues_after = db.list_issues(None, None, None).unwrap();
+            prop_assert_eq!(issues_after.len(), 0);
+
+            // Verify each child is gone
+            for child_id in child_ids {
+                let child = db.get_issue(child_id).unwrap();
+                prop_assert!(child.is_none(), "Child should be deleted");
+            }
+        }
+
+        /// Ready list should never contain issues with open blockers
+        #[test]
+        fn prop_ready_list_correctness(issue_count in 2usize..8) {
+            let (db, _dir) = setup_test_db();
+
+            // Create issues
+            let mut ids = Vec::new();
+            for i in 0..issue_count {
+                let id = db.create_issue(&format!("Issue {}", i), None, "medium").unwrap();
+                ids.push(id);
+            }
+
+            // Create some dependencies (each issue blocked by next, except last)
+            for i in 0..issue_count - 1 {
+                let _ = db.add_dependency(ids[i], ids[i + 1]);
+            }
+
+            // Get ready issues
+            let ready = db.list_ready_issues().unwrap();
+
+            // Verify: no ready issue should have open blockers
+            for issue in &ready {
+                let blockers = db.get_blockers(issue.id).unwrap();
+                for blocker_id in blockers {
+                    if let Some(blocker) = db.get_issue(blocker_id).unwrap() {
+                        prop_assert_ne!(
+                            blocker.status, "open",
+                            "Ready issue {} has open blocker {}",
+                            issue.id, blocker_id
+                        );
+                    }
+                }
+            }
+        }
+
+        /// Session active_issue_id should be set to NULL when issue is deleted
+        #[test]
+        fn prop_session_issue_delete_cascade(title in safe_string()) {
+            let (db, _dir) = setup_test_db();
+
+            // Create issue and session
+            let issue_id = db.create_issue(&title, None, "medium").unwrap();
+            let session_id = db.start_session().unwrap();
+            db.set_session_issue(session_id, issue_id).unwrap();
+
+            // Verify session has issue
+            let session = db.get_current_session().unwrap().unwrap();
+            prop_assert_eq!(session.active_issue_id, Some(issue_id));
+
+            // Delete the issue
+            db.delete_issue(issue_id).unwrap();
+
+            // Session should still exist but with NULL active_issue_id
+            let session_after = db.get_current_session().unwrap().unwrap();
+            prop_assert_eq!(session_after.id, session_id);
+            prop_assert_eq!(session_after.active_issue_id, None, "Session active_issue_id should be NULL after issue deletion");
+        }
+
+        /// Search wildcards should be escaped properly
+        #[test]
+        fn prop_search_wildcards_escaped(
+            prefix in "[a-zA-Z]{3,5}",
+            suffix in "[a-zA-Z]{3,5}"
+        ) {
+            let (db, _dir) = setup_test_db();
+
+            // Create an issue with % and _ in title
+            let special_title = format!("{}%test_marker{}", prefix, suffix);
+            db.create_issue(&special_title, None, "medium").unwrap();
+
+            // Create another issue that would match if wildcards weren't escaped
+            db.create_issue("other content here", None, "medium").unwrap();
+
+            // Search for the special characters literally
+            let results = db.search_issues("%test_").unwrap();
+
+            // Should find only the issue with literal % and _
+            prop_assert!(results.iter().all(|i| i.title.contains("%test_")));
         }
     }
 }

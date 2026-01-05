@@ -17,28 +17,34 @@ pub fn run_json(db: &Database, input_path: &Path) -> Result<()> {
         input_path.display()
     );
 
-    // Map old IDs to new IDs for parent relationships
-    let mut id_map: HashMap<i64, i64> = HashMap::new();
+    // Wrap entire import in a transaction for atomicity
+    // If any part fails, all changes are rolled back
+    let count = db.transaction(|| {
+        // Map old IDs to new IDs for parent relationships
+        let mut id_map: HashMap<i64, i64> = HashMap::new();
 
-    // First pass: create all issues without parent relationships
-    for issue in &data.issues {
-        let new_id = import_issue(db, issue, None)?;
-        id_map.insert(issue.id, new_id);
-    }
+        // First pass: create all issues without parent relationships
+        for issue in &data.issues {
+            let new_id = import_issue(db, issue, None)?;
+            id_map.insert(issue.id, new_id);
+        }
 
-    // Second pass: update parent relationships
-    for issue in &data.issues {
-        if let Some(old_parent_id) = issue.parent_id {
-            if let Some(&new_parent_id) = id_map.get(&old_parent_id) {
-                if let Some(&new_id) = id_map.get(&issue.id) {
-                    // Update parent_id for this issue
-                    db.update_parent(new_id, Some(new_parent_id))?;
+        // Second pass: update parent relationships
+        for issue in &data.issues {
+            if let Some(old_parent_id) = issue.parent_id {
+                if let Some(&new_parent_id) = id_map.get(&old_parent_id) {
+                    if let Some(&new_id) = id_map.get(&issue.id) {
+                        // Update parent_id for this issue
+                        db.update_parent(new_id, Some(new_parent_id))?;
+                    }
                 }
             }
         }
-    }
 
-    println!("Successfully imported {} issues", data.issues.len());
+        Ok(data.issues.len())
+    })?;
+
+    println!("Successfully imported {} issues", count);
     Ok(())
 }
 

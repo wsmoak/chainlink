@@ -2,6 +2,8 @@
 
 A simple, lean issue tracker CLI designed for AI-assisted development. Track tasks across sessions with context preservation.
 
+![Chainlink: The Missing Memory Layer for AI-Assisted Development](images/infographic.png)
+
 ## Features
 
 - **Local-first**: All data stored in SQLite (`.chainlink/issues.db`)

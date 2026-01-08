@@ -902,7 +902,13 @@ fn test_export_markdown() {
     let export_path = dir.path().join("export.md");
     let (success, _, _) = run_chainlink(
         dir.path(),
-        &["export", "-o", export_path.to_str().unwrap(), "-f", "markdown"],
+        &[
+            "export",
+            "-o",
+            export_path.to_str().unwrap(),
+            "-f",
+            "markdown",
+        ],
     );
 
     assert!(success);
@@ -1777,7 +1783,13 @@ fn test_export_markdown_format() {
     let export_path = dir.path().join("export.md");
     let (success, _, stderr) = run_chainlink(
         dir.path(),
-        &["export", "-o", export_path.to_str().unwrap(), "-f", "markdown"],
+        &[
+            "export",
+            "-o",
+            export_path.to_str().unwrap(),
+            "-f",
+            "markdown",
+        ],
     );
 
     assert!(success);

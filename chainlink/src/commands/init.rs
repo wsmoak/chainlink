@@ -10,6 +10,7 @@ const SETTINGS_JSON: &str = include_str!("../../../.claude/settings.json");
 const PROMPT_GUARD_PY: &str = include_str!("../../../.claude/hooks/prompt-guard.py");
 const POST_EDIT_CHECK_PY: &str = include_str!("../../../.claude/hooks/post-edit-check.py");
 const SESSION_START_PY: &str = include_str!("../../../.claude/hooks/session-start.py");
+const PRE_WEB_CHECK_PY: &str = include_str!("../../../.claude/hooks/pre-web-check.py");
 
 // Embed rule files at compile time
 // Path: chainlink/src/commands/init.rs -> ../../../.chainlink/rules/
@@ -35,6 +36,7 @@ const RULE_ZIG: &str = include_str!("../../../.chainlink/rules/zig.md");
 const RULE_ODIN: &str = include_str!("../../../.chainlink/rules/odin.md");
 const RULE_ELIXIR: &str = include_str!("../../../.chainlink/rules/elixir.md");
 const RULE_ELIXIR_PHOENIX: &str = include_str!("../../../.chainlink/rules/elixir-phoenix.md");
+const RULE_WEB: &str = include_str!("../../../.chainlink/rules/web.md");
 
 /// All rule files to deploy
 const RULE_FILES: &[(&str, &str)] = &[
@@ -60,6 +62,7 @@ const RULE_FILES: &[(&str, &str)] = &[
     ("odin.md", RULE_ODIN),
     ("elixir.md", RULE_ELIXIR),
     ("elixir-phoenix.md", RULE_ELIXIR_PHOENIX),
+    ("web.md", RULE_WEB),
 ];
 
 pub fn run(path: &Path, force: bool) -> Result<()> {
@@ -122,6 +125,9 @@ pub fn run(path: &Path, force: bool) -> Result<()> {
 
         fs::write(hooks_dir.join("session-start.py"), SESSION_START_PY)
             .context("Failed to write session-start.py")?;
+
+        fs::write(hooks_dir.join("pre-web-check.py"), PRE_WEB_CHECK_PY)
+            .context("Failed to write pre-web-check.py")?;
 
         if force && claude_exists {
             println!("Updated {} with latest hooks", claude_dir.display());

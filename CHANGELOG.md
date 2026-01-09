@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Project infographic for README
 
 ### Fixed
+- Fix macOS cross-compilation linker configuration (#34)
 - Import/export roundtrip issues with parent relationships
 
 ## [1.3] - 2026-01-07
@@ -48,6 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ~88% code coverage
 
 ### Security
+- Add web.md prompt injection defense rule for external content (#33)
 - Bump qs dependency to fix vulnerability
 
 ### Fixed

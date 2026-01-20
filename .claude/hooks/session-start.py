@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Session start hook that loads chainlink context and reminds about session workflow.
+Session start hook that loads chainlink context and auto-starts sessions.
 """
 
 import json
@@ -40,12 +40,24 @@ def check_chainlink_initialized():
     return False
 
 
+def has_active_session():
+    """Check if there's an active chainlink session."""
+    result = run_chainlink(["session", "status"])
+    if result and "Session #" in result and "(started" in result:
+        return True
+    return False
+
+
 def main():
     if not check_chainlink_initialized():
         # No chainlink repo, skip
         sys.exit(0)
 
     context_parts = ["<chainlink-session-context>"]
+
+    # Auto-start session if none active
+    if not has_active_session():
+        run_chainlink(["session", "start"])
 
     # Try to get session status
     session_status = run_chainlink(["session", "status"])

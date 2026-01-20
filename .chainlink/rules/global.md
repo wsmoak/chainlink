@@ -68,12 +68,26 @@ chainlink close 1 --no-changelog
 | Work will span sessions | Create issue with detailed comments |
 | You discover related work | Create linked issue |
 
-### Session Management
+### Session Management (AUTO-START enabled)
+
+Sessions are auto-started by the SessionStart hook. **You MUST end sessions properly.**
+
 ```bash
-chainlink session start              # Start of conversation
 chainlink session work <id>          # Mark current focus
-chainlink session end --notes "..."  # Before context limit
+chainlink session end --notes "..."  # REQUIRED before stopping
 ```
+
+**You MUST run `chainlink session end --notes "..."` when:**
+- Context is getting long (conversation > 30-40 messages)
+- User says goodbye, done, thanks, or indicates stopping
+- Before any natural stopping point
+- You've completed a significant piece of work
+
+**Handoff notes MUST include:**
+- What was accomplished this session
+- What's in progress or blocked
+- What should be done next
+
 
 ### Priority Guide
 - `critical`: Blocking other work, security issue, production down

@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Improve session management with auto-start and stronger rules (#48)
 - Add sanitizing MCP server for safe web fetching (#47)
 - Add macOS binary support to VSCode extension with cross-compilation (#32)
 - Auto-create CHANGELOG.md if it doesn't exist when closing issues

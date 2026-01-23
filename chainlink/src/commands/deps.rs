@@ -1,15 +1,12 @@
 use anyhow::{bail, Result};
 
 use crate::db::Database;
+use crate::utils::truncate;
 
 pub fn block(db: &Database, issue_id: i64, blocker_id: i64) -> Result<()> {
     // Check if both issues exist
-    if db.get_issue(issue_id)?.is_none() {
-        bail!("Issue #{} not found", issue_id);
-    }
-    if db.get_issue(blocker_id)?.is_none() {
-        bail!("Issue #{} not found", blocker_id);
-    }
+    db.require_issue(issue_id)?;
+    db.require_issue(blocker_id)?;
 
     if issue_id == blocker_id {
         bail!("An issue cannot block itself");
@@ -74,16 +71,6 @@ pub fn list_ready(db: &Database) -> Result<()> {
     Ok(())
 }
 
-fn truncate(s: &str, max_chars: usize) -> String {
-    let char_count = s.chars().count();
-    if char_count <= max_chars {
-        s.to_string()
-    } else {
-        let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
-        format!("{}...", truncated)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,23 +82,6 @@ mod tests {
         let db_path = dir.path().join("test.db");
         let db = Database::open(&db_path).unwrap();
         (db, dir)
-    }
-
-    // Truncate function tests
-    #[test]
-    fn test_truncate_short_string() {
-        assert_eq!(truncate("hello", 10), "hello");
-    }
-
-    #[test]
-    fn test_truncate_long_string() {
-        assert_eq!(truncate("hello world", 8), "hello...");
-    }
-
-    #[test]
-    fn test_truncate_unicode() {
-        let result = truncate("日本語テスト", 5);
-        assert!(result.chars().count() <= 5);
     }
 
     // Block function tests

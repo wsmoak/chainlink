@@ -235,19 +235,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([parent_id], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([parent_id], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -258,23 +246,16 @@ impl Database {
             "SELECT id, title, description, status, priority, parent_id, created_at, updated_at, closed_at FROM issues WHERE id = ?1",
         )?;
 
-        let issue = stmt
-            .query_row([id], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })
-            .ok();
+        let issue = stmt.query_row([id], issue_from_row).ok();
 
         Ok(issue)
+    }
+
+    /// Get an issue by ID, returning an error if not found.
+    /// Use this instead of get_issue when you need the issue to exist.
+    pub fn require_issue(&self, id: i64) -> Result<Issue> {
+        self.get_issue(id)?
+            .ok_or_else(|| anyhow::anyhow!("Issue #{} not found", id))
     }
 
     pub fn list_issues(
@@ -322,19 +303,7 @@ impl Database {
             params_vec.iter().map(|p| p.as_ref()).collect();
 
         let issues = stmt
-            .query_map(params_refs.as_slice(), |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map(params_refs.as_slice(), issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -544,19 +513,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -578,19 +535,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -746,19 +691,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([&pattern], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([&pattern], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -820,19 +753,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([issue_id], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([issue_id], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -925,19 +846,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([milestone_id], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([milestone_id], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -1011,19 +920,7 @@ impl Database {
         )?;
 
         let issues = stmt
-            .query_map([], |row| {
-                Ok(Issue {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    status: row.get(3)?,
-                    priority: row.get(4)?,
-                    parent_id: row.get(5)?,
-                    created_at: parse_datetime(row.get::<_, String>(6)?),
-                    updated_at: parse_datetime(row.get::<_, String>(7)?),
-                    closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
-                })
-            })?
+            .query_map([], issue_from_row)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(issues)
@@ -1047,6 +944,22 @@ fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(|_| Utc::now())
+}
+
+/// Maps a database row to an Issue struct.
+/// Expects columns in order: id, title, description, status, priority, parent_id, created_at, updated_at, closed_at
+fn issue_from_row(row: &rusqlite::Row) -> rusqlite::Result<Issue> {
+    Ok(Issue {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        description: row.get(2)?,
+        status: row.get(3)?,
+        priority: row.get(4)?,
+        parent_id: row.get(5)?,
+        created_at: parse_datetime(row.get::<_, String>(6)?),
+        updated_at: parse_datetime(row.get::<_, String>(7)?),
+        closed_at: row.get::<_, Option<String>>(8)?.map(parse_datetime),
+    })
 }
 
 #[cfg(test)]

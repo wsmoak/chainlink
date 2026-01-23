@@ -1,15 +1,10 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use crate::db::Database;
 
 pub fn add(db: &Database, issue_id: i64, related_id: i64) -> Result<()> {
-    // Verify both issues exist
-    if db.get_issue(issue_id)?.is_none() {
-        bail!("Issue #{} not found", issue_id);
-    }
-    if db.get_issue(related_id)?.is_none() {
-        bail!("Issue #{} not found", related_id);
-    }
+    db.require_issue(issue_id)?;
+    db.require_issue(related_id)?;
 
     if db.add_relation(issue_id, related_id)? {
         println!("Linked #{} ↔ #{}", issue_id, related_id);
@@ -37,10 +32,7 @@ pub fn remove(db: &Database, issue_id: i64, related_id: i64) -> Result<()> {
 }
 
 pub fn list(db: &Database, issue_id: i64) -> Result<()> {
-    let issue = db.get_issue(issue_id)?;
-    if issue.is_none() {
-        bail!("Issue #{} not found", issue_id);
-    }
+    db.require_issue(issue_id)?;
 
     let related = db.get_related_issues(issue_id)?;
 

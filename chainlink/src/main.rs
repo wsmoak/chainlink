@@ -2,6 +2,7 @@ mod commands;
 mod daemon;
 mod db;
 mod models;
+mod utils;
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};

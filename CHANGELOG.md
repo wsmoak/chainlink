@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Claude 4.6 Opus Optimization Epic (#99)
+
+Comprehensive overhaul to make chainlink work seamlessly with Claude 4.6 Opus,
+reducing tool-call overhead, improving machine-parseable output, and adding
+context-compression resilience.
+
+#### CLI Enhancements
+- `chainlink quick` compound command — create + label + work in one call (#100)
+- `--json` output flag on show command for structured machine-readable output (#101)
+- `--quiet` / `-q` mode for minimal, pipe-friendly output (#108)
+- `--work` and `--label` flags on `create` and `subissue` commands (#104)
+- `close-all` batch command with label and priority filtering (#107)
+
+#### Session & Context Management
+- Stale session auto-detection and cleanup (auto-ends sessions idle >4 hours) (#102)
+- Context compression breadcrumbs via `session action` — records last action, auto-comments on active issue, and restores context on resume (#111)
+- PreToolUse hook nudges agent when no active working issue is set (#105)
+
+#### Templates & Rules
+- Three new AI-specific issue templates: `audit`, `continuation`, `investigation` (#110)
+- Condensed behavioral guard mode — lighter rule injection after first prompt (#103)
+- Reorganized rules into tiered priority system (critical/standard/optional) (#109)
+
+#### Hooks
+- Debounced linting mode in post-edit hook to reduce noise (#106)
+
+#### Code Quality
+- Fix all clippy warnings (introduced `CreateOpts` struct, removed dead imports, idiomatic Rust patterns) (#112)
+- Database schema v7→v8 migration (adds `last_action` column to sessions, auto-applied on first use)
+
 ### Added
 - Add comprehensive edge case testing (proptest, CLI fuzzing, Unicode E2E) (#50)
 - Improve session management with auto-start and stronger rules (#48)

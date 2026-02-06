@@ -2,7 +2,7 @@
   "name": "chainlink-issue-tracker",
   "displayName": "Chainlink Issue Tracker",
   "description": "A simple, lean issue tracker for AI-assisted development",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publisher": "Dollspace-gay",
   "icon": "images/icon.png",
   "engines": {
@@ -41,6 +41,18 @@
         "title": "Chainlink: Session Status"
       },
       {
+        "command": "chainlink.sessionWork",
+        "title": "Chainlink: Set Working Issue"
+      },
+      {
+        "command": "chainlink.sessionAction",
+        "title": "Chainlink: Record Action Breadcrumb"
+      },
+      {
+        "command": "chainlink.sessionLastHandoff",
+        "title": "Chainlink: Show Last Handoff Notes"
+      },
+      {
         "command": "chainlink.daemonStart",
         "title": "Chainlink: Start Daemon"
       },
@@ -61,8 +73,88 @@
         "title": "Chainlink: Create Issue"
       },
       {
+        "command": "chainlink.quickCreate",
+        "title": "Chainlink: Quick Create (Create + Label + Work)"
+      },
+      {
+        "command": "chainlink.createWithTemplate",
+        "title": "Chainlink: Create from Template"
+      },
+      {
+        "command": "chainlink.createSubissue",
+        "title": "Chainlink: Create Subissue"
+      },
+      {
         "command": "chainlink.showIssue",
         "title": "Chainlink: Show Issue Details"
+      },
+      {
+        "command": "chainlink.updateIssue",
+        "title": "Chainlink: Update Issue"
+      },
+      {
+        "command": "chainlink.closeIssue",
+        "title": "Chainlink: Close Issue"
+      },
+      {
+        "command": "chainlink.closeAllIssues",
+        "title": "Chainlink: Close All Issues"
+      },
+      {
+        "command": "chainlink.reopenIssue",
+        "title": "Chainlink: Reopen Issue"
+      },
+      {
+        "command": "chainlink.deleteIssue",
+        "title": "Chainlink: Delete Issue"
+      },
+      {
+        "command": "chainlink.addComment",
+        "title": "Chainlink: Add Comment"
+      },
+      {
+        "command": "chainlink.addLabel",
+        "title": "Chainlink: Add Label"
+      },
+      {
+        "command": "chainlink.removeLabel",
+        "title": "Chainlink: Remove Label"
+      },
+      {
+        "command": "chainlink.blockIssue",
+        "title": "Chainlink: Block Issue"
+      },
+      {
+        "command": "chainlink.unblockIssue",
+        "title": "Chainlink: Unblock Issue"
+      },
+      {
+        "command": "chainlink.readyIssues",
+        "title": "Chainlink: Show Ready Issues"
+      },
+      {
+        "command": "chainlink.blockedIssues",
+        "title": "Chainlink: Show Blocked Issues"
+      },
+      {
+        "command": "chainlink.relateIssues",
+        "title": "Chainlink: Relate Issues"
+      },
+      {
+        "command": "chainlink.unrelateIssues",
+        "title": "Chainlink: Unrelate Issues"
+      },
+      {
+        "command": "chainlink.nextIssue",
+        "title": "Chainlink: Suggest Next Issue"
+      },
+      {
+        "command": "chainlink.treeView",
+        "title": "Chainlink: Show Issue Tree"
+      },
+      {
+        "command": "chainlink.searchIssues",
+        "title": "Chainlink: Search Issues"
       }
     ],
     "configuration": {

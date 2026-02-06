@@ -5,6 +5,25 @@ use std::path::Path;
 use crate::db::Database;
 
 pub fn close(db: &Database, id: i64, update_changelog: bool, chainlink_dir: &Path) -> Result<()> {
+    close_inner(db, id, update_changelog, chainlink_dir, false)
+}
+
+pub fn close_quiet(
+    db: &Database,
+    id: i64,
+    update_changelog: bool,
+    chainlink_dir: &Path,
+) -> Result<()> {
+    close_inner(db, id, update_changelog, chainlink_dir, true)
+}
+
+fn close_inner(
+    db: &Database,
+    id: i64,
+    update_changelog: bool,
+    chainlink_dir: &Path,
+    quiet: bool,
+) -> Result<()> {
     // Get issue details before closing
     let issue = db.get_issue(id)?;
     let issue = match issue {
@@ -14,7 +33,9 @@ pub fn close(db: &Database, id: i64, update_changelog: bool, chainlink_dir: &Pat
     let labels = db.get_labels(id)?;
 
     if db.close_issue(id)? {
-        println!("Closed issue #{}", id);
+        if !quiet {
+            println!("Closed issue #{}", id);
+        }
     } else {
         bail!("Issue #{} not found", id);
     }
@@ -39,7 +60,7 @@ pub fn close(db: &Database, id: i64, update_changelog: bool, chainlink_dir: &Pat
 
             if let Err(e) = append_to_changelog(&changelog_path, &category, &entry) {
                 eprintln!("Warning: Could not update CHANGELOG.md: {}", e);
-            } else {
+            } else if !quiet {
                 println!("Added to CHANGELOG.md under {}", category);
             }
         }
@@ -122,6 +143,32 @@ fn append_to_changelog(path: &Path, category: &str, entry: &str) -> Result<()> {
     };
 
     fs::write(path, new_content).context("Failed to write CHANGELOG.md")?;
+    Ok(())
+}
+
+pub fn close_all(
+    db: &Database,
+    label_filter: Option<&str>,
+    priority_filter: Option<&str>,
+    update_changelog: bool,
+    chainlink_dir: &Path,
+) -> Result<()> {
+    let issues = db.list_issues(Some("open"), label_filter, priority_filter)?;
+
+    if issues.is_empty() {
+        println!("No matching open issues found.");
+        return Ok(());
+    }
+
+    let mut closed_count = 0;
+    for issue in &issues {
+        match close(db, issue.id, update_changelog, chainlink_dir) {
+            Ok(()) => closed_count += 1,
+            Err(e) => eprintln!("Warning: Failed to close #{}: {}", issue.id, e),
+        }
+    }
+
+    println!("Closed {} issue(s).", closed_count);
     Ok(())
 }
 

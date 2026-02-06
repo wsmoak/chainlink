@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::models::{Comment, Issue, Session};
 
-const SCHEMA_VERSION: i32 = 7;
+const SCHEMA_VERSION: i32 = 8;
 
 pub struct Database {
     conn: Connection,
@@ -182,6 +182,13 @@ impl Database {
                     ALTER TABLE sessions_new RENAME TO sessions;
                     "#,
                 );
+            }
+
+            // Migration v8: Add last_action column to sessions table
+            if version < 8 {
+                let _ = self
+                    .conn
+                    .execute("ALTER TABLE sessions ADD COLUMN last_action TEXT", []);
             }
 
             self.conn
@@ -562,7 +569,7 @@ impl Database {
 
     pub fn get_current_session(&self) -> Result<Option<Session>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, started_at, ended_at, active_issue_id, handoff_notes FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1",
+            "SELECT id, started_at, ended_at, active_issue_id, handoff_notes, last_action FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1",
         )?;
 
         let session = stmt
@@ -573,6 +580,7 @@ impl Database {
                     ended_at: row.get::<_, Option<String>>(2)?.map(parse_datetime),
                     active_issue_id: row.get(3)?,
                     handoff_notes: row.get(4)?,
+                    last_action: row.get(5)?,
                 })
             })
             .ok();
@@ -582,7 +590,7 @@ impl Database {
 
     pub fn get_last_session(&self) -> Result<Option<Session>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, started_at, ended_at, active_issue_id, handoff_notes FROM sessions WHERE ended_at IS NOT NULL ORDER BY id DESC LIMIT 1",
+            "SELECT id, started_at, ended_at, active_issue_id, handoff_notes, last_action FROM sessions WHERE ended_at IS NOT NULL ORDER BY id DESC LIMIT 1",
         )?;
 
         let session = stmt
@@ -593,6 +601,7 @@ impl Database {
                     ended_at: row.get::<_, Option<String>>(2)?.map(parse_datetime),
                     active_issue_id: row.get(3)?,
                     handoff_notes: row.get(4)?,
+                    last_action: row.get(5)?,
                 })
             })
             .ok();
@@ -604,6 +613,14 @@ impl Database {
         let rows = self.conn.execute(
             "UPDATE sessions SET active_issue_id = ?1 WHERE id = ?2",
             params![issue_id, session_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    pub fn set_session_action(&self, session_id: i64, action: &str) -> Result<bool> {
+        let rows = self.conn.execute(
+            "UPDATE sessions SET last_action = ?1 WHERE id = ?2",
+            params![action, session_id],
         )?;
         Ok(rows > 0)
     }
@@ -2080,7 +2097,7 @@ mod proptest_tests {
 
             db.add_dependency(a, b).unwrap();
             let blockers = db.get_blockers(a).unwrap();
-            prop_assert!(blockers.iter().any(|&id| id == b));
+            prop_assert!(blockers.contains(&b));
         }
 
         /// Search should find issues with matching titles
@@ -2095,7 +2112,7 @@ mod proptest_tests {
 
             // Search for the unique marker
             let results = db.search_issues("unique marker").unwrap();
-            prop_assert!(results.len() >= 1);
+            prop_assert!(!results.is_empty());
             prop_assert!(results.iter().any(|i| i.title.contains("unique marker")));
         }
 

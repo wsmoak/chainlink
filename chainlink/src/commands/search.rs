@@ -1,6 +1,13 @@
 use anyhow::Result;
+use serde_json;
 
 use crate::db::Database;
+
+pub fn run_json(db: &Database, query: &str) -> Result<()> {
+    let results = db.search_issues(query)?;
+    println!("{}", serde_json::to_string_pretty(&results)?);
+    Ok(())
+}
 
 pub fn run(db: &Database, query: &str) -> Result<()> {
     let results = db.search_issues(query)?;
@@ -133,7 +140,7 @@ mod tests {
         db.create_issue("Test issue", None, "medium").unwrap();
 
         run(&db, "").unwrap();
-        let results = db.search_issues("").unwrap();
+        let _results = db.search_issues("").unwrap();
         // Empty query behavior: may match all or none depending on implementation
         // Just verify it doesn't error
     }

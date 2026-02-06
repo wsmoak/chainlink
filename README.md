@@ -10,6 +10,9 @@ A simple, lean issue tracker CLI designed for AI-assisted development. Track tas
 
 - **Local-first**: All data stored in SQLite (`.chainlink/issues.db`)
 - **Session management**: Preserve context across Claude/AI sessions with handoff notes
+- **Context compression resilience**: Breadcrumb tracking via `session action` survives context resets
+- **Quick workflow**: `chainlink quick` creates, labels, and starts work in one command
+- **Issue templates**: Built-in templates for bugs, features, audits, investigations, and more
 - **Subissues**: Break large tasks into smaller, trackable pieces
 - **Dependencies**: Track blocking relationships between issues
 - **Related issues**: Link related issues together for context
@@ -18,9 +21,13 @@ A simple, lean issue tracker CLI designed for AI-assisted development. Track tas
 - **Time tracking**: Start/stop timers to track time spent on issues
 - **Smart recommendations**: `chainlink next` suggests what to work on based on priority and progress
 - **Tree view**: Visualize issue hierarchy with `chainlink tree`
+- **JSON output**: `--json` flag for structured, machine-readable output
+- **Quiet mode**: `--quiet` flag for minimal, pipe-friendly output
+- **Batch operations**: `close-all` with label/priority filtering
 - **Export/Import**: Backup and restore issues in JSON format
 - **Issue archiving**: Archive old closed issues to keep the active list clean
 - **Claude Code hooks**: Behavioral guardrails that inject best practices into AI sessions
+- **Stale session detection**: Auto-ends sessions idle >4 hours on next startup
 - **Customizable rules**: Override default rules via `.chainlink/rules/` markdown files
 - **No sync complexity**: No git hooks, no auto-push, just simple local storage
 
@@ -46,8 +53,17 @@ chainlink session start
 chainlink create "Fix login bug" -p high
 chainlink create "Add dark mode" -d "Support light/dark theme toggle"
 
+# Quick create + label + start working in one command
+chainlink quick "Fix login bug" -p high -l bug
+
+# Use a template for structured issues
+chainlink create "Login fails on refresh" --template bug
+
 # Set what you're working on
 chainlink session work 1
+
+# Record breadcrumbs before context compression
+chainlink session action "Investigating token refresh logic"
 
 # End session with handoff notes
 chainlink session end --notes "Fixed auth bug, dark mode is next"
@@ -62,6 +78,9 @@ chainlink session end --notes "Fixed auth bug, dark mode is next"
 | `chainlink create <title>` | Create a new issue |
 | `chainlink create <title> -p high` | Create with priority (low/medium/high/critical) |
 | `chainlink create <title> -d "desc"` | Create with description |
+| `chainlink create <title> --template bug` | Create from template (bug/feature/refactor/research/audit/continuation/investigation) |
+| `chainlink create <title> --work -l bug` | Create, label, and start working on it |
+| `chainlink quick <title> [-p high] [-l label]` | Shorthand: create + label + set as active work item |
 | `chainlink subissue <parent_id> <title>` | Create a subissue under a parent |
 | `chainlink subissue <parent_id> <title> -p high` | Subissue with priority |
 | `chainlink list` | List open issues |
@@ -70,13 +89,19 @@ chainlink session end --notes "Fixed auth bug, dark mode is next"
 | `chainlink list -l bug` | Filter by label |
 | `chainlink list -p high` | Filter by priority |
 | `chainlink show <id>` | Show issue details |
+| `chainlink show <id> --json` | Show issue details as JSON |
 | `chainlink update <id> --title "New"` | Update title |
 | `chainlink update <id> -d "desc"` | Update description |
 | `chainlink update <id> -p critical` | Update priority |
 | `chainlink close <id>` | Close an issue |
+| `chainlink close-all` | Close all open issues |
+| `chainlink close-all -l bug` | Close all issues with a specific label |
+| `chainlink close-all -p low` | Close all issues with a specific priority |
 | `chainlink reopen <id>` | Reopen a closed issue |
 | `chainlink delete <id>` | Delete an issue (with confirmation) |
 | `chainlink delete <id> -f` | Delete without confirmation |
+
+> **Tip:** Add `--quiet` / `-q` to any command for minimal output (just the ID), useful for scripting and piping.
 
 ### Comments & Labels
 
@@ -151,15 +176,17 @@ chainlink session end --notes "Fixed auth bug, dark mode is next"
 
 ### Session Management
 
-Sessions preserve context across AI assistant restarts.
+Sessions preserve context across AI assistant restarts. Stale sessions (idle >4 hours) are auto-ended on the next startup.
 
 | Command | Description |
 |---------|-------------|
 | `chainlink session start` | Start a session, shows previous handoff notes |
 | `chainlink session work <id>` | Set the issue you're currently working on |
-| `chainlink session status` | Show current session info |
+| `chainlink session action "..."` | Record a breadcrumb (survives context compression) |
+| `chainlink session status` | Show current session info and last action |
 | `chainlink session end` | End the current session |
 | `chainlink session end --notes "..."` | End with handoff notes for next session |
+| `chainlink session last-handoff` | Retrieve handoff notes from the previous session |
 
 ### Daemon (Optional)
 
@@ -175,26 +202,31 @@ The daemon auto-flushes session state every 30 seconds.
 
 ```bash
 $ chainlink session start
-Previous session ended: 2024-01-15 09:00
+Previous session ended: 2026-01-15 09:00
 Handoff notes:
   Working on auth bug. Found issue in token refresh.
 
 Session #5 started.
 
-$ chainlink session work 1
-Now working on: #1 Fix login bug
+# Quick create + label + start working in one step
+$ chainlink quick "Fix token refresh" -p high -l bug
+Created issue #3
+Now working on: #3 Fix token refresh
 
-$ chainlink comment 1 "Fixed the token refresh issue"
-Added comment to issue #1
+# Record breadcrumbs as you work (survives context compression)
+$ chainlink session action "Found root cause in refresh_token()"
 
-$ chainlink close 1
-Closed issue #1
+$ chainlink comment 3 "Fixed the token refresh issue"
+Added comment to issue #3
+
+$ chainlink close 3
+Closed issue #3
 
 $ chainlink ready
 Ready issues (no blockers):
   #2    medium   Add dark mode
 
-$ chainlink session end --notes "Closed auth bug. Dark mode is next."
+$ chainlink session end --notes "Closed auth bug #3. Dark mode is next."
 Session #5 ended.
 Handoff notes saved.
 ```
@@ -215,9 +247,10 @@ The hooks are located in `.claude/hooks/` and configured in `.claude/settings.js
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
-| `prompt-guard.py` | Every prompt | Injects language-specific best practices, reminds about error handling, security, and no stubs/dead code |
-| `post-edit-check.py` | After file edits | Reminds to verify changes compile and follow project patterns |
-| `session-start.py` | Session start/resume | Loads chainlink context and previous session handoff notes |
+| `prompt-guard.py` | Every prompt | Injects language-specific best practices (condensed after first prompt) |
+| `post-edit-check.py` | After file edits | Debounced linting reminder to verify changes compile |
+| `work-check.py` | Before write/edit | Nudges when no active working issue is set |
+| `session-start.py` | Session start/resume | Loads context, detects stale sessions, restores breadcrumbs after context compression |
 
 ### Behavioral Guardrails
 

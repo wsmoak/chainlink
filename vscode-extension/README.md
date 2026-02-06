@@ -5,7 +5,12 @@ A simple, lean issue tracker for AI-assisted development, integrated directly in
 ## Features
 
 - **Session Management**: Start/end work sessions with handoff notes for context preservation
+- **Context Compression Resilience**: Breadcrumb tracking via `session action` survives AI context resets
 - **Issue Tracking**: Create, update, and manage issues without leaving your editor
+- **Quick Workflow**: `chainlink quick` creates, labels, and starts work in one command
+- **Issue Templates**: Built-in templates for bugs, features, audits, investigations, and more
+- **JSON & Quiet Modes**: `--json` for structured output, `--quiet` for pipe-friendly results
+- **Stale Session Detection**: Auto-ends sessions idle >4 hours on next startup
 - **Daemon Auto-Start**: Background daemon keeps session state fresh
 - **Cross-Platform**: Works on Windows, Linux, and macOS
 - **Agent-Agnostic**: Context provider script works with any AI coding assistant
@@ -22,40 +27,72 @@ A simple, lean issue tracker for AI-assisted development, integrated directly in
 
 ## Commands
 
+All commands are available from the VS Code Command Palette (Ctrl+Shift+P / Cmd+Shift+P).
+
+### Session Management
+
+| VS Code Command | CLI Equivalent | Description |
+|-----------------|----------------|-------------|
+| `Chainlink: Start Session` | `chainlink session start` | Start a new work session |
+| `Chainlink: End Session` | `chainlink session end --notes "..."` | End session with optional handoff notes |
+| `Chainlink: Session Status` | `chainlink session status` | Show current session info and last action |
+| `Chainlink: Set Working Issue` | `chainlink session work <id>` | Set the issue you're currently working on |
+| `Chainlink: Record Action Breadcrumb` | `chainlink session action "..."` | Record a breadcrumb (survives context compression) |
+| `Chainlink: Show Last Handoff Notes` | `chainlink session last-handoff` | Retrieve handoff notes from the previous session |
+
+### Issue Creation
+
+| VS Code Command | CLI Equivalent | Description |
+|-----------------|----------------|-------------|
+| `Chainlink: Create Issue` | `chainlink create <title> -p <priority>` | Create a new issue with priority picker |
+| `Chainlink: Quick Create` | `chainlink quick <title> -p <pri> -l <label>` | Create + label + set as active work item |
+| `Chainlink: Create from Template` | `chainlink create <title> --template <tmpl>` | Create from template (bug/feature/audit/etc.) |
+| `Chainlink: Create Subissue` | `chainlink subissue <parent> <title>` | Create a subissue under a parent |
+
+### Issue Management
+
+| VS Code Command | CLI Equivalent | Description |
+|-----------------|----------------|-------------|
+| `Chainlink: Show Issue Details` | `chainlink show <id>` | View details of a specific issue |
+| `Chainlink: Update Issue` | `chainlink update <id> ...` | Update title, description, or priority |
+| `Chainlink: Close Issue` | `chainlink close <id>` | Close an issue |
+| `Chainlink: Close All Issues` | `chainlink close-all` | Close all open issues (with confirmation) |
+| `Chainlink: Reopen Issue` | `chainlink reopen <id>` | Reopen a closed issue |
+| `Chainlink: Delete Issue` | `chainlink delete <id>` | Delete an issue (with confirmation) |
+
+### Comments, Labels & Dependencies
+
+| VS Code Command | CLI Equivalent | Description |
+|-----------------|----------------|-------------|
+| `Chainlink: Add Comment` | `chainlink comment <id> "text"` | Add a comment to an issue |
+| `Chainlink: Add Label` | `chainlink label <id> <label>` | Add a label to an issue |
+| `Chainlink: Remove Label` | `chainlink unlabel <id> <label>` | Remove a label from an issue |
+| `Chainlink: Block Issue` | `chainlink block <id> <blocker>` | Mark issue as blocked by another |
+| `Chainlink: Unblock Issue` | `chainlink unblock <id> <blocker>` | Remove blocking relationship |
+| `Chainlink: Relate Issues` | `chainlink relate <id1> <id2>` | Link two related issues together |
+| `Chainlink: Unrelate Issues` | `chainlink unrelate <id1> <id2>` | Remove relationship between issues |
+
+### Navigation & Search
+
+| VS Code Command | CLI Equivalent | Description |
+|-----------------|----------------|-------------|
+| `Chainlink: List Issues` | `chainlink list` | Show all open issues |
+| `Chainlink: Show Ready Issues` | `chainlink ready` | List issues ready to work on (no blockers) |
+| `Chainlink: Show Blocked Issues` | `chainlink blocked` | List all blocked issues |
+| `Chainlink: Suggest Next Issue` | `chainlink next` | Recommend the next issue to work on |
+| `Chainlink: Show Issue Tree` | `chainlink tree` | Show all issues in a tree hierarchy |
+| `Chainlink: Search Issues` | `chainlink search <query>` | Search issues by keyword |
+
+### Setup & Daemon
+
 | VS Code Command | CLI Equivalent | Description |
 |-----------------|----------------|-------------|
 | `Chainlink: Initialize Project` | `chainlink init` | Initialize chainlink in current workspace |
-| `Chainlink: Start Session` | `chainlink session start` | Start a new work session |
-| `Chainlink: End Session` | `chainlink session end --notes "..."` | End session with optional handoff notes |
-| `Chainlink: Session Status` | `chainlink session status` | Show current session info |
 | `Chainlink: Start Daemon` | `chainlink daemon start` | Manually start the background daemon |
 | `Chainlink: Stop Daemon` | `chainlink daemon stop` | Stop the background daemon |
 | `Chainlink: Daemon Status` | `chainlink daemon status` | Check if daemon is running |
-| `Chainlink: List Issues` | `chainlink list` | Show all open issues |
-| `Chainlink: Create Issue` | `chainlink create <title>` | Create a new issue |
-| `Chainlink: Show Issue Details` | `chainlink show <id>` | View details of a specific issue |
 
-### Additional CLI Commands
-
-These commands are available via CLI but not yet exposed in the VS Code command palette:
-
-```bash
-chainlink create <title> -p high          # Create with priority (low/medium/high/critical)
-chainlink create <title> -d "description" # Create with description
-chainlink subissue <parent_id> <title>    # Create subissue under parent
-chainlink update <id> --title "New"       # Update issue title
-chainlink update <id> -p critical         # Update priority
-chainlink close <id>                      # Close an issue
-chainlink reopen <id>                     # Reopen closed issue
-chainlink delete <id>                     # Delete an issue
-chainlink comment <id> "message"          # Add comment to issue
-chainlink label <id> <label>              # Add label to issue
-chainlink block <id> <blocker_id>         # Mark issue as blocked
-chainlink unblock <id> <blocker_id>       # Remove blocking relationship
-chainlink ready                           # List issues ready to work on
-chainlink blocked                         # List blocked issues
-chainlink session work <id>               # Set current working issue
-```
+> **Tip:** All commands also work via CLI. Add `--quiet` / `-q` for minimal output, or `--json` for structured output.
 
 ## Configuration
 

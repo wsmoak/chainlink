@@ -265,7 +265,7 @@ mod tests {
         #[test]
         fn prop_priority_weight_valid(priority in "low|medium|high|critical") {
             let weight = priority_weight(&priority);
-            prop_assert!(weight >= 1 && weight <= 4);
+            prop_assert!((1..=4).contains(&weight));
         }
 
         #[test]

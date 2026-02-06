@@ -1,6 +1,42 @@
 use anyhow::{bail, Result};
+use serde::Serialize;
+use serde_json;
 
 use crate::db::Database;
+
+#[derive(Serialize)]
+struct IssueDetail {
+    #[serde(flatten)]
+    issue: crate::models::Issue,
+    labels: Vec<String>,
+    milestone: Option<crate::models::Milestone>,
+    comments: Vec<crate::models::Comment>,
+    blocked_by: Vec<i64>,
+    blocking: Vec<i64>,
+    subissues: Vec<crate::models::Issue>,
+    related: Vec<crate::models::Issue>,
+}
+
+pub fn run_json(db: &Database, id: i64) -> Result<()> {
+    let issue = match db.get_issue(id)? {
+        Some(i) => i,
+        None => bail!("Issue #{} not found", id),
+    };
+
+    let detail = IssueDetail {
+        issue,
+        labels: db.get_labels(id)?,
+        milestone: db.get_issue_milestone(id)?,
+        comments: db.get_comments(id)?,
+        blocked_by: db.get_blockers(id)?,
+        blocking: db.get_blocking(id)?,
+        subissues: db.get_subissues(id)?,
+        related: db.get_related_issues(id)?,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&detail)?);
+    Ok(())
+}
 
 pub fn run(db: &Database, id: i64) -> Result<()> {
     let issue = match db.get_issue(id)? {

@@ -481,6 +481,61 @@ You are working on a {lang_list} project. Follow these requirements strictly:
     return reminder
 
 
+def get_guard_marker_path(chainlink_dir):
+    """Get the path to the guard-full-sent marker file."""
+    if not chainlink_dir:
+        return None
+    cache_dir = os.path.join(chainlink_dir, '.cache')
+    return os.path.join(cache_dir, 'guard-full-sent')
+
+
+def should_send_full_guard(chainlink_dir):
+    """Check if this is the first prompt (no marker) or marker is stale."""
+    marker = get_guard_marker_path(chainlink_dir)
+    if not marker:
+        return True
+    if not os.path.exists(marker):
+        return True
+    # Re-send full guard if marker is older than 4 hours (new session likely)
+    try:
+        age = datetime.now().timestamp() - os.path.getmtime(marker)
+        if age > 4 * 3600:
+            return True
+    except OSError:
+        return True
+    return False
+
+
+def mark_full_guard_sent(chainlink_dir):
+    """Create marker file indicating full guard has been sent this session."""
+    marker = get_guard_marker_path(chainlink_dir)
+    if not marker:
+        return
+    try:
+        cache_dir = os.path.dirname(marker)
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(marker, 'w') as f:
+            f.write(str(datetime.now().timestamp()))
+    except OSError:
+        pass
+
+
+def build_condensed_reminder(languages):
+    """Build a short reminder for subsequent prompts (after full guard already sent)."""
+    lang_list = ", ".join(languages) if languages else "this project"
+    return f"""<chainlink-behavioral-guard>
+## Quick Reminder ({lang_list})
+
+- **Chainlink**: Create issues before work. Use `chainlink quick` for create+label+work. Close with `chainlink close`.
+- **Security**: Use `mcp__chainlink-safe-fetch__safe_fetch` for web requests. Parameterized queries only.
+- **Quality**: No stubs/TODOs. Read before write. Complete features fully. Proper error handling.
+- **Session**: Use `chainlink session work <id>`. End with `chainlink session end --notes "..."`.
+- **Testing**: Run tests after changes. Fix warnings, don't suppress them.
+
+Full rules were injected on first prompt. Use `chainlink list -s open` to see current issues.
+</chainlink-behavioral-guard>"""
+
+
 def main():
     try:
         # Read input from stdin (Claude Code passes prompt info)
@@ -493,6 +548,13 @@ def main():
 
     # Find chainlink directory and load rules
     chainlink_dir = find_chainlink_dir()
+
+    # Check if we should send full or condensed guard
+    if not should_send_full_guard(chainlink_dir):
+        languages = detect_languages()
+        print(build_condensed_reminder(languages))
+        sys.exit(0)
+
     language_rules, global_rules, project_rules = load_all_rules(chainlink_dir)
 
     # Detect languages in the project
@@ -504,8 +566,11 @@ def main():
     # Get installed dependencies to prevent version hallucinations
     dependencies = get_dependencies()
 
-    # Output the reminder as plain text (gets injected as context)
+    # Output the full reminder
     print(build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules))
+
+    # Mark that we've sent the full guard this session
+    mark_full_guard_sent(chainlink_dir)
     sys.exit(0)
 
 

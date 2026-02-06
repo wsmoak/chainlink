@@ -1,7 +1,19 @@
 use anyhow::Result;
+use serde_json;
 
 use crate::db::Database;
 use crate::utils::truncate;
+
+pub fn run_json(
+    db: &Database,
+    status: Option<&str>,
+    label: Option<&str>,
+    priority: Option<&str>,
+) -> Result<()> {
+    let issues = db.list_issues(status, label, priority)?;
+    println!("{}", serde_json::to_string_pretty(&issues)?);
+    Ok(())
+}
 
 pub fn run(
     db: &Database,

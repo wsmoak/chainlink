@@ -77,6 +77,10 @@ pub fn status(db: &Database) -> Result<()> {
         println!("Working on: (none)");
     }
 
+    if let Some(ref action) = session.last_action {
+        println!("Last action: {}", action);
+    }
+
     println!("Duration: {} minutes", minutes);
     Ok(())
 }
@@ -94,6 +98,23 @@ pub fn work(db: &Database, issue_id: i64) -> Result<()> {
 
     db.set_session_issue(session.id, issue_id)?;
     println!("Now working on: #{} {}", issue.id, issue.title);
+    Ok(())
+}
+
+pub fn action(db: &Database, text: &str) -> Result<()> {
+    let session = match db.get_current_session()? {
+        Some(s) => s,
+        None => bail!("No active session. Use 'chainlink session start' first."),
+    };
+
+    db.set_session_action(session.id, text)?;
+    println!("Action recorded: {}", text);
+
+    // Auto-comment on the active issue if one is set
+    if let Some(issue_id) = session.active_issue_id {
+        db.add_comment(issue_id, &format!("[action] {}", text))?;
+    }
+
     Ok(())
 }
 

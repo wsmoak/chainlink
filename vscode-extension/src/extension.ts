@@ -117,129 +117,411 @@ export function deactivate(): void {
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
-    // Init command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.init', async () => {
-            await executeChainlinkCommand(['init'], 'Initializing chainlink project...');
-        })
-    );
+    const reg = (id: string, handler: () => Promise<void>) => {
+        context.subscriptions.push(vscode.commands.registerCommand(id, handler));
+    };
 
-    // Session commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.sessionStart', async () => {
-            await executeChainlinkCommand(['session', 'start'], 'Starting session...');
-        })
-    );
+    // ── Init ──
+    reg('chainlink.init', async () => {
+        await executeChainlinkCommand(['init'], 'Initializing chainlink project...');
+    });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.sessionEnd', async () => {
-            const notes = await vscode.window.showInputBox({
-                prompt: 'Enter handoff notes (optional)',
-                placeHolder: 'What should the next session know?',
-            });
-            const args = ['session', 'end'];
-            if (notes) {
-                args.push('--notes', notes);
-            }
-            await executeChainlinkCommand(args, 'Ending session...');
-        })
-    );
+    // ── Session commands ──
+    reg('chainlink.sessionStart', async () => {
+        await executeChainlinkCommand(['session', 'start'], 'Starting session...');
+    });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.sessionStatus', async () => {
-            await executeChainlinkCommand(['session', 'status'], 'Getting session status...');
-        })
-    );
+    reg('chainlink.sessionEnd', async () => {
+        const notes = await vscode.window.showInputBox({
+            prompt: 'Enter handoff notes (optional)',
+            placeHolder: 'What should the next session know?',
+        });
+        const args = ['session', 'end'];
+        if (notes) {
+            args.push('--notes', notes);
+        }
+        await executeChainlinkCommand(args, 'Ending session...');
+    });
 
-    // Daemon commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.daemonStart', async () => {
-            if (!daemonManager) {
-                vscode.window.showErrorMessage('No workspace folder open');
-                return;
-            }
-            try {
-                await daemonManager.start();
-                updateStatusBar(true);
-                vscode.window.showInformationMessage('Chainlink daemon started');
-            } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                vscode.window.showErrorMessage(`Failed to start daemon: ${message}`);
-            }
-        })
-    );
+    reg('chainlink.sessionStatus', async () => {
+        await executeChainlinkCommand(['session', 'status'], 'Getting session status...');
+    });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.daemonStop', async () => {
-            if (!daemonManager) {
-                vscode.window.showErrorMessage('No workspace folder open');
-                return;
-            }
-            daemonManager.stop();
-            updateStatusBar(false);
-            vscode.window.showInformationMessage('Chainlink daemon stopped');
-        })
-    );
+    reg('chainlink.sessionWork', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to work on',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+        await executeChainlinkCommand(['session', 'work', id], `Setting working issue to #${id}...`);
+    });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.daemonStatus', async () => {
-            if (!daemonManager) {
-                vscode.window.showInformationMessage('Chainlink: No workspace open');
-                return;
-            }
-            const running = daemonManager.isRunning();
-            const pid = daemonManager.getPid();
-            if (running && pid) {
-                vscode.window.showInformationMessage(`Chainlink daemon running (PID: ${pid})`);
-            } else {
-                vscode.window.showInformationMessage('Chainlink daemon not running');
-            }
-        })
-    );
+    reg('chainlink.sessionAction', async () => {
+        const text = await vscode.window.showInputBox({
+            prompt: 'Action breadcrumb',
+            placeHolder: 'What are you working on right now?',
+        });
+        if (!text) { return; }
+        await executeChainlinkCommand(['session', 'action', text], 'Recording action...');
+    });
 
-    // Issue commands
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.listIssues', async () => {
-            await executeChainlinkCommand(['list'], 'Listing issues...');
-        })
-    );
+    reg('chainlink.sessionLastHandoff', async () => {
+        await executeChainlinkCommand(['session', 'last-handoff'], 'Getting last handoff notes...');
+    });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.createIssue', async () => {
-            const title = await vscode.window.showInputBox({
-                prompt: 'Issue title',
-                placeHolder: 'Enter issue title',
-            });
-            if (!title) {
-                return;
-            }
+    // ── Daemon commands ──
+    reg('chainlink.daemonStart', async () => {
+        if (!daemonManager) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+        try {
+            await daemonManager.start();
+            updateStatusBar(true);
+            vscode.window.showInformationMessage('Chainlink daemon started');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Failed to start daemon: ${message}`);
+        }
+    });
 
-            const priority = await vscode.window.showQuickPick(
+    reg('chainlink.daemonStop', async () => {
+        if (!daemonManager) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+        daemonManager.stop();
+        updateStatusBar(false);
+        vscode.window.showInformationMessage('Chainlink daemon stopped');
+    });
+
+    reg('chainlink.daemonStatus', async () => {
+        if (!daemonManager) {
+            vscode.window.showInformationMessage('Chainlink: No workspace open');
+            return;
+        }
+        const running = daemonManager.isRunning();
+        const pid = daemonManager.getPid();
+        if (running && pid) {
+            vscode.window.showInformationMessage(`Chainlink daemon running (PID: ${pid})`);
+        } else {
+            vscode.window.showInformationMessage('Chainlink daemon not running');
+        }
+    });
+
+    // ── Issue listing & navigation ──
+    reg('chainlink.listIssues', async () => {
+        await executeChainlinkCommand(['list'], 'Listing issues...');
+    });
+
+    reg('chainlink.readyIssues', async () => {
+        await executeChainlinkCommand(['ready'], 'Listing ready issues...');
+    });
+
+    reg('chainlink.blockedIssues', async () => {
+        await executeChainlinkCommand(['blocked'], 'Listing blocked issues...');
+    });
+
+    reg('chainlink.nextIssue', async () => {
+        await executeChainlinkCommand(['next'], 'Suggesting next issue...');
+    });
+
+    reg('chainlink.treeView', async () => {
+        await executeChainlinkCommand(['tree'], 'Showing issue tree...');
+    });
+
+    reg('chainlink.searchIssues', async () => {
+        const query = await vscode.window.showInputBox({
+            prompt: 'Search query',
+            placeHolder: 'Enter search terms',
+        });
+        if (!query) { return; }
+        await executeChainlinkCommand(['search', query], `Searching for "${query}"...`);
+    });
+
+    // ── Issue creation ──
+    reg('chainlink.createIssue', async () => {
+        const title = await vscode.window.showInputBox({
+            prompt: 'Issue title',
+            placeHolder: 'Enter issue title',
+        });
+        if (!title) { return; }
+
+        const priority = await vscode.window.showQuickPick(
+            ['low', 'medium', 'high', 'critical'],
+            { placeHolder: 'Select priority' }
+        );
+
+        const args = ['create', title];
+        if (priority) {
+            args.push('-p', priority);
+        }
+
+        await executeChainlinkCommand(args, 'Creating issue...');
+    });
+
+    reg('chainlink.quickCreate', async () => {
+        const title = await vscode.window.showInputBox({
+            prompt: 'Issue title',
+            placeHolder: 'Enter issue title',
+        });
+        if (!title) { return; }
+
+        const priority = await vscode.window.showQuickPick(
+            ['low', 'medium', 'high', 'critical'],
+            { placeHolder: 'Select priority' }
+        );
+
+        const label = await vscode.window.showInputBox({
+            prompt: 'Label (optional)',
+            placeHolder: 'e.g. bug, feature, refactor',
+        });
+
+        const args = ['quick', title];
+        if (priority) {
+            args.push('-p', priority);
+        }
+        if (label) {
+            args.push('-l', label);
+        }
+
+        await executeChainlinkCommand(args, 'Quick creating issue...');
+    });
+
+    reg('chainlink.createWithTemplate', async () => {
+        const title = await vscode.window.showInputBox({
+            prompt: 'Issue title',
+            placeHolder: 'Enter issue title',
+        });
+        if (!title) { return; }
+
+        const template = await vscode.window.showQuickPick(
+            ['bug', 'feature', 'refactor', 'research', 'audit', 'continuation', 'investigation'],
+            { placeHolder: 'Select template' }
+        );
+        if (!template) { return; }
+
+        await executeChainlinkCommand(['create', title, '--template', template], `Creating ${template} issue...`);
+    });
+
+    reg('chainlink.createSubissue', async () => {
+        const parentId = await vscode.window.showInputBox({
+            prompt: 'Parent issue ID',
+            placeHolder: 'Enter parent issue number',
+        });
+        if (!parentId) { return; }
+
+        const title = await vscode.window.showInputBox({
+            prompt: 'Subissue title',
+            placeHolder: 'Enter subissue title',
+        });
+        if (!title) { return; }
+
+        await executeChainlinkCommand(['subissue', parentId, title], 'Creating subissue...');
+    });
+
+    // ── Issue details & modification ──
+    reg('chainlink.showIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+        await executeChainlinkCommand(['show', id], `Showing issue #${id}...`);
+    });
+
+    reg('chainlink.updateIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to update',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+
+        const field = await vscode.window.showQuickPick(
+            [
+                { label: 'Title', value: '--title' },
+                { label: 'Description', value: '-d' },
+                { label: 'Priority', value: '-p' },
+            ],
+            { placeHolder: 'What to update?' }
+        );
+        if (!field) { return; }
+
+        let newValue: string | undefined;
+        if (field.value === '-p') {
+            newValue = await vscode.window.showQuickPick(
                 ['low', 'medium', 'high', 'critical'],
-                { placeHolder: 'Select priority' }
+                { placeHolder: 'Select new priority' }
             );
-
-            const args = ['create', title];
-            if (priority) {
-                args.push('-p', priority);
-            }
-
-            await executeChainlinkCommand(args, 'Creating issue...');
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('chainlink.showIssue', async () => {
-            const id = await vscode.window.showInputBox({
-                prompt: 'Issue ID',
-                placeHolder: 'Enter issue number',
+        } else {
+            newValue = await vscode.window.showInputBox({
+                prompt: `New ${field.label.toLowerCase()}`,
+                placeHolder: `Enter new ${field.label.toLowerCase()}`,
             });
-            if (!id) {
-                return;
-            }
-            await executeChainlinkCommand(['show', id], `Showing issue #${id}...`);
-        })
-    );
+        }
+        if (!newValue) { return; }
+
+        await executeChainlinkCommand(['update', id, field.value, newValue], `Updating issue #${id}...`);
+    });
+
+    reg('chainlink.closeIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to close',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+        await executeChainlinkCommand(['close', id], `Closing issue #${id}...`);
+    });
+
+    reg('chainlink.closeAllIssues', async () => {
+        const confirm = await vscode.window.showWarningMessage(
+            'Close all open issues?',
+            { modal: true },
+            'Close All'
+        );
+        if (confirm !== 'Close All') { return; }
+        await executeChainlinkCommand(['close-all'], 'Closing all issues...');
+    });
+
+    reg('chainlink.reopenIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to reopen',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+        await executeChainlinkCommand(['reopen', id], `Reopening issue #${id}...`);
+    });
+
+    reg('chainlink.deleteIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to delete',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Delete issue #${id}? This cannot be undone.`,
+            { modal: true },
+            'Delete'
+        );
+        if (confirm !== 'Delete') { return; }
+
+        await executeChainlinkCommand(['delete', id, '-f'], `Deleting issue #${id}...`);
+    });
+
+    // ── Comments & labels ──
+    reg('chainlink.addComment', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+
+        const text = await vscode.window.showInputBox({
+            prompt: 'Comment text',
+            placeHolder: 'Enter your comment',
+        });
+        if (!text) { return; }
+
+        await executeChainlinkCommand(['comment', id, text], `Adding comment to #${id}...`);
+    });
+
+    reg('chainlink.addLabel', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+
+        const label = await vscode.window.showInputBox({
+            prompt: 'Label to add',
+            placeHolder: 'e.g. bug, feature, refactor',
+        });
+        if (!label) { return; }
+
+        await executeChainlinkCommand(['label', id, label], `Adding label to #${id}...`);
+    });
+
+    reg('chainlink.removeLabel', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id) { return; }
+
+        const label = await vscode.window.showInputBox({
+            prompt: 'Label to remove',
+            placeHolder: 'Enter label name',
+        });
+        if (!label) { return; }
+
+        await executeChainlinkCommand(['unlabel', id, label], `Removing label from #${id}...`);
+    });
+
+    // ── Dependencies & relations ──
+    reg('chainlink.blockIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID that is blocked',
+            placeHolder: 'Enter blocked issue number',
+        });
+        if (!id) { return; }
+
+        const blockerId = await vscode.window.showInputBox({
+            prompt: 'Blocker issue ID',
+            placeHolder: 'Enter the issue that blocks it',
+        });
+        if (!blockerId) { return; }
+
+        await executeChainlinkCommand(['block', id, blockerId], `Blocking #${id} with #${blockerId}...`);
+    });
+
+    reg('chainlink.unblockIssue', async () => {
+        const id = await vscode.window.showInputBox({
+            prompt: 'Issue ID to unblock',
+            placeHolder: 'Enter blocked issue number',
+        });
+        if (!id) { return; }
+
+        const blockerId = await vscode.window.showInputBox({
+            prompt: 'Blocker issue ID to remove',
+            placeHolder: 'Enter the blocker issue number',
+        });
+        if (!blockerId) { return; }
+
+        await executeChainlinkCommand(['unblock', id, blockerId], `Unblocking #${id} from #${blockerId}...`);
+    });
+
+    reg('chainlink.relateIssues', async () => {
+        const id1 = await vscode.window.showInputBox({
+            prompt: 'First issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id1) { return; }
+
+        const id2 = await vscode.window.showInputBox({
+            prompt: 'Second issue ID',
+            placeHolder: 'Enter related issue number',
+        });
+        if (!id2) { return; }
+
+        await executeChainlinkCommand(['relate', id1, id2], `Relating #${id1} and #${id2}...`);
+    });
+
+    reg('chainlink.unrelateIssues', async () => {
+        const id1 = await vscode.window.showInputBox({
+            prompt: 'First issue ID',
+            placeHolder: 'Enter issue number',
+        });
+        if (!id1) { return; }
+
+        const id2 = await vscode.window.showInputBox({
+            prompt: 'Second issue ID',
+            placeHolder: 'Enter related issue number',
+        });
+        if (!id2) { return; }
+
+        await executeChainlinkCommand(['unrelate', id1, id2], `Unrelating #${id1} and #${id2}...`);
+    });
 }
 
 async function executeChainlinkCommand(args: string[], statusMessage: string): Promise<void> {

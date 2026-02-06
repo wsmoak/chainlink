@@ -16,6 +16,14 @@ use db::Database;
 #[command(about = "A simple, lean issue tracker CLI")]
 #[command(version)]
 struct Cli {
+    /// Quiet mode: only output essential data (IDs, counts)
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
+    /// Output as JSON (supported by list, show, search, session status)
+    #[arg(long, global = true)]
+    json: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -42,6 +50,30 @@ enum Commands {
         /// Template (bug, feature, refactor, research)
         #[arg(short, long)]
         template: Option<String>,
+        /// Add labels to the issue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Set as current session work item
+        #[arg(short, long)]
+        work: bool,
+    },
+
+    /// Quick-create an issue and start working on it (create + label + session work)
+    Quick {
+        /// Issue title
+        title: String,
+        /// Issue description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Priority (low, medium, high, critical)
+        #[arg(short, long, default_value = "medium")]
+        priority: String,
+        /// Template (bug, feature, refactor, research)
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Add labels to the issue
+        #[arg(short, long)]
+        label: Vec<String>,
     },
 
     /// Create a subissue under a parent issue
@@ -56,6 +88,12 @@ enum Commands {
         /// Priority (low, medium, high, critical)
         #[arg(short, long, default_value = "medium")]
         priority: String,
+        /// Add labels to the subissue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Set as current session work item
+        #[arg(short, long)]
+        work: bool,
     },
 
     /// List issues
@@ -103,6 +141,19 @@ enum Commands {
         /// Issue ID
         id: i64,
         /// Skip changelog entry
+        #[arg(long)]
+        no_changelog: bool,
+    },
+
+    /// Close all issues matching filters
+    CloseAll {
+        /// Filter by label
+        #[arg(short, long)]
+        label: Option<String>,
+        /// Filter by priority
+        #[arg(short, long)]
+        priority: Option<String>,
+        /// Skip changelog entries
         #[arg(long)]
         no_changelog: bool,
     },
@@ -343,6 +394,11 @@ enum SessionCommands {
     },
     /// Show handoff notes from the previous session
     LastHandoff,
+    /// Record last action for context compression breadcrumbs
+    Action {
+        /// Description of what you just did or are doing
+        text: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -396,14 +452,45 @@ fn main() -> Result<()> {
             description,
             priority,
             template,
+            label,
+            work,
         } => {
             let db = get_db()?;
+            let opts = commands::create::CreateOpts {
+                labels: &label,
+                work,
+                quiet: cli.quiet,
+            };
             commands::create::run(
                 &db,
                 &title,
                 description.as_deref(),
                 &priority,
                 template.as_deref(),
+                &opts,
+            )
+        }
+
+        Commands::Quick {
+            title,
+            description,
+            priority,
+            template,
+            label,
+        } => {
+            let db = get_db()?;
+            let opts = commands::create::CreateOpts {
+                labels: &label,
+                work: true,
+                quiet: cli.quiet,
+            };
+            commands::create::run(
+                &db,
+                &title,
+                description.as_deref(),
+                &priority,
+                template.as_deref(),
+                &opts,
             )
         }
 
@@ -412,9 +499,23 @@ fn main() -> Result<()> {
             title,
             description,
             priority,
+            label,
+            work,
         } => {
             let db = get_db()?;
-            commands::create::run_subissue(&db, parent, &title, description.as_deref(), &priority)
+            let opts = commands::create::CreateOpts {
+                labels: &label,
+                work,
+                quiet: cli.quiet,
+            };
+            commands::create::run_subissue(
+                &db,
+                parent,
+                &title,
+                description.as_deref(),
+                &priority,
+                &opts,
+            )
         }
 
         Commands::List {
@@ -423,17 +524,29 @@ fn main() -> Result<()> {
             priority,
         } => {
             let db = get_db()?;
-            commands::list::run(&db, Some(&status), label.as_deref(), priority.as_deref())
+            if cli.json {
+                commands::list::run_json(&db, Some(&status), label.as_deref(), priority.as_deref())
+            } else {
+                commands::list::run(&db, Some(&status), label.as_deref(), priority.as_deref())
+            }
         }
 
         Commands::Search { query } => {
             let db = get_db()?;
-            commands::search::run(&db, &query)
+            if cli.json {
+                commands::search::run_json(&db, &query)
+            } else {
+                commands::search::run(&db, &query)
+            }
         }
 
         Commands::Show { id } => {
             let db = get_db()?;
-            commands::show::run(&db, id)
+            if cli.json {
+                commands::show::run_json(&db, id)
+            } else {
+                commands::show::run(&db, id)
+            }
         }
 
         Commands::Update {
@@ -455,7 +568,27 @@ fn main() -> Result<()> {
         Commands::Close { id, no_changelog } => {
             let db = get_db()?;
             let chainlink_dir = find_chainlink_dir()?;
-            commands::status::close(&db, id, !no_changelog, &chainlink_dir)
+            if cli.quiet {
+                commands::status::close_quiet(&db, id, !no_changelog, &chainlink_dir)
+            } else {
+                commands::status::close(&db, id, !no_changelog, &chainlink_dir)
+            }
+        }
+
+        Commands::CloseAll {
+            label,
+            priority,
+            no_changelog,
+        } => {
+            let db = get_db()?;
+            let chainlink_dir = find_chainlink_dir()?;
+            commands::status::close_all(
+                &db,
+                label.as_deref(),
+                priority.as_deref(),
+                !no_changelog,
+                &chainlink_dir,
+            )
         }
 
         Commands::Reopen { id } => {
@@ -600,6 +733,7 @@ fn main() -> Result<()> {
                 SessionCommands::Status => commands::session::status(&db),
                 SessionCommands::Work { id } => commands::session::work(&db, id),
                 SessionCommands::LastHandoff => commands::session::last_handoff(&db),
+                SessionCommands::Action { text } => commands::session::action(&db, &text),
             }
         }
 

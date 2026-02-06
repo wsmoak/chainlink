@@ -37,6 +37,26 @@ pub const TEMPLATES: &[Template] = &[
         label: "research",
         description_prefix: Some("Question: \n\nContext: \n\nFindings: "),
     },
+    Template {
+        name: "audit",
+        priority: "high",
+        label: "audit",
+        description_prefix: Some("Scope: \n\nFiles to review: \n\nFindings: \n\nSeverity: "),
+    },
+    Template {
+        name: "continuation",
+        priority: "high",
+        label: "continuation",
+        description_prefix: Some("Previous session: \n\nCompleted: \n\nRemaining: \n\nBlockers: "),
+    },
+    Template {
+        name: "investigation",
+        priority: "medium",
+        label: "investigation",
+        description_prefix: Some(
+            "Symptom: \n\nReproduction: \n\nHypotheses: \n\nRoot cause: \n\nFix: ",
+        ),
+    },
 ];
 
 pub fn get_template(name: &str) -> Option<&'static Template> {
@@ -51,15 +71,23 @@ pub fn validate_priority(priority: &str) -> bool {
     VALID_PRIORITIES.contains(&priority)
 }
 
+/// Options shared by create and subissue commands.
+pub struct CreateOpts<'a> {
+    pub labels: &'a [String],
+    pub work: bool,
+    pub quiet: bool,
+}
+
 pub fn run(
     db: &Database,
     title: &str,
     description: Option<&str>,
     priority: &str,
     template: Option<&str>,
+    opts: &CreateOpts<'_>,
 ) -> Result<()> {
     // Apply template if specified
-    let (final_priority, final_description, label) = if let Some(tmpl_name) = template {
+    let (final_priority, final_description, template_label) = if let Some(tmpl_name) = template {
         let tmpl = get_template(tmpl_name).ok_or_else(|| {
             anyhow::anyhow!(
                 "Unknown template '{}'. Available: {}",
@@ -102,14 +130,36 @@ pub fn run(
     let id = db.create_issue(title, final_description.as_deref(), &final_priority)?;
 
     // Auto-add label from template
-    if let Some(lbl) = label {
+    if let Some(lbl) = template_label {
         db.add_label(id, lbl)?;
     }
 
-    println!("Created issue #{}", id);
-    if let Some(tmpl) = template {
-        println!("  Applied template: {}", tmpl);
+    // Add user-specified labels
+    for lbl in opts.labels {
+        db.add_label(id, lbl)?;
     }
+
+    if opts.quiet {
+        println!("{}", id);
+    } else {
+        println!("Created issue #{}", id);
+        if let Some(tmpl) = template {
+            println!("  Applied template: {}", tmpl);
+        }
+    }
+
+    // Set as active session work item
+    if opts.work {
+        if let Ok(Some(session)) = db.get_current_session() {
+            db.set_session_issue(session.id, id)?;
+            if !opts.quiet {
+                println!("Now working on: #{} {}", id, title);
+            }
+        } else if !opts.quiet {
+            eprintln!("Warning: --work specified but no active session");
+        }
+    }
+
     Ok(())
 }
 
@@ -119,6 +169,7 @@ pub fn run_subissue(
     title: &str,
     description: Option<&str>,
     priority: &str,
+    opts: &CreateOpts<'_>,
 ) -> Result<()> {
     if !validate_priority(priority) {
         bail!(
@@ -135,7 +186,30 @@ pub fn run_subissue(
     }
 
     let id = db.create_subissue(parent_id, title, description, priority)?;
-    println!("Created subissue #{} under #{}", id, parent_id);
+
+    // Add user-specified labels
+    for lbl in opts.labels {
+        db.add_label(id, lbl)?;
+    }
+
+    if opts.quiet {
+        println!("{}", id);
+    } else {
+        println!("Created subissue #{} under #{}", id, parent_id);
+    }
+
+    // Set as active session work item
+    if opts.work {
+        if let Ok(Some(session)) = db.get_current_session() {
+            db.set_session_issue(session.id, id)?;
+            if !opts.quiet {
+                println!("Now working on: #{} {}", id, title);
+            }
+        } else if !opts.quiet {
+            eprintln!("Warning: --work specified but no active session");
+        }
+    }
+
     Ok(())
 }
 
@@ -202,7 +276,10 @@ mod tests {
         assert!(templates.contains(&"feature"));
         assert!(templates.contains(&"refactor"));
         assert!(templates.contains(&"research"));
-        assert_eq!(templates.len(), 4);
+        assert!(templates.contains(&"audit"));
+        assert!(templates.contains(&"continuation"));
+        assert!(templates.contains(&"investigation"));
+        assert_eq!(templates.len(), 7);
     }
 
     #[test]
@@ -248,7 +325,7 @@ mod tests {
         #[test]
         fn prop_unknown_template_returns_none(name in "[a-zA-Z]{5,20}"
             .prop_filter("Exclude known templates", |s| {
-                !["bug", "feature", "refactor", "research"].contains(&s.as_str())
+                !["bug", "feature", "refactor", "research", "audit", "continuation", "investigation"].contains(&s.as_str())
             })
         ) {
             prop_assert!(get_template(&name).is_none());

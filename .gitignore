@@ -20,3 +20,6 @@ chainlink/fuzz/artifacts/
 chainlink/fuzz/corpus/
 /mutants.out/
 chainlink/mutants.out/
+chainlink/.chainlink/.cache/last-edit-time
+.chainlink/.cache/guard-full-sent
+OPUS_4_6_SUGGESTIONS.md

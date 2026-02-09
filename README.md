@@ -249,7 +249,7 @@ The hooks are located in `.claude/hooks/` and configured in `.claude/settings.js
 |------|---------|---------|
 | `prompt-guard.py` | Every prompt | Injects language-specific best practices (condensed after first prompt) |
 | `post-edit-check.py` | After file edits | Debounced linting reminder to verify changes compile |
-| `work-check.py` | Before write/edit | Nudges when no active working issue is set |
+| `work-check.py` | Before write/edit | Enforces issue tracking (configurable: strict/normal/relaxed) and blocks git mutations |
 | `session-start.py` | Session start/resume | Loads context, detects stale sessions, restores breadcrumbs after context compression |
 
 ### Behavioral Guardrails
@@ -279,17 +279,54 @@ The hooks auto-detect the project language(s) and inject relevant best practices
 - **Go**: Check errors, use `context.Context`, `defer` for cleanup
 - **Java, C, C++, C#, Ruby, PHP, Swift, Kotlin, Scala, Zig, Odin, Elixir**: Language-specific best practices
 
+### Configuring Hook Behavior
+
+Hook behavior is controlled by `.chainlink/hook-config.json`:
+
+```json
+{
+  "tracking_mode": "strict",
+  "blocked_git_commands": ["git push", "git commit", "..."],
+  "allowed_bash_prefixes": ["chainlink ", "git status", "..."]
+}
+```
+
+#### Tracking Mode
+
+Controls how aggressively chainlink enforces issue creation before code changes:
+
+| Mode | Hook Behavior | Prompt Language | Best For |
+|------|---------------|-----------------|----------|
+| `strict` | **Blocks** Write/Edit/Bash without an active issue | ALL CAPS MANDATORY, "ABSOLUTE RULE" | Teams that want every change tracked |
+| `normal` | **Reminds** but allows proceeding without an issue | Soft "should" language, gentle nudges | Balanced — tracks most work, doesn't block quick fixes |
+| `relaxed` | **No enforcement** — only git mutation blocks apply | Minimal — just mentions chainlink is available | Users who want tracking opt-in only |
+
+Each mode loads its instructions from `.chainlink/rules/tracking-{mode}.md`, so you can edit the wording per-mode.
+
+#### Blocked Git Commands
+
+Git mutation commands (push, commit, merge, rebase, etc.) are **permanently blocked in all modes** — these are human-only operations. You can customize the list in `hook-config.json`.
+
+Read-only git commands (status, diff, log, show, branch) are always allowed.
+
+#### Allowed Bash Prefixes
+
+Commands that bypass the issue-required check (read-only and infrastructure commands). Customize in `hook-config.json`.
+
 ### Customizable Rules
 
-Chainlink ships with sensible default rules that can be customized per-project. Rules are stored in `.chainlink/rules/` as markdown files:
+Rules are stored in `.chainlink/rules/` as markdown files:
 
 | File | Purpose |
 |------|---------|
-| `global.md` | Behavioral guards (no stubs, error handling, security) |
+| `global.md` | Security, correctness, and style rules |
+| `tracking-strict.md` | Strict mode: forceful issue tracking instructions |
+| `tracking-normal.md` | Normal mode: gentle issue tracking instructions |
+| `tracking-relaxed.md` | Relaxed mode: minimal tracking reference |
 | `project.md` | Project-specific rules (your custom rules go here) |
 | `rust.md`, `python.md`, etc. | Language-specific best practices |
 
-To customize rules:
+To customize:
 1. Edit the appropriate file in `.chainlink/rules/`
 2. Changes take effect immediately on the next prompt
 

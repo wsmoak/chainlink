@@ -96,11 +96,54 @@ All commands are available from the VS Code Command Palette (Ctrl+Shift+P / Cmd+
 
 ## Configuration
 
+### VS Code Settings
+
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `chainlink.binaryPath` | `""` | Override path to chainlink binary (for development) |
 | `chainlink.autoStartDaemon` | `true` | Auto-start daemon when .chainlink project detected |
 | `chainlink.showOutputChannel` | `false` | Show output channel for daemon logs |
+
+### Hook Configuration
+
+AI behavior is controlled by `.chainlink/hook-config.json` in your project:
+
+```json
+{
+  "tracking_mode": "strict",
+  "blocked_git_commands": ["git push", "git commit", "..."],
+  "allowed_bash_prefixes": ["chainlink ", "git status", "..."]
+}
+```
+
+#### Tracking Mode
+
+| Mode | Behavior | Best For |
+|------|----------|----------|
+| `strict` | **Blocks** code changes without an active issue. Forceful prompt language. | Every change must be tracked |
+| `normal` | **Reminds** but doesn't block. Gentle prompt language. | Balanced — tracks most work |
+| `relaxed` | **No enforcement**. Only git mutation blocks apply. | Opt-in tracking only |
+
+Each mode loads its wording from `.chainlink/rules/tracking-{mode}.md` — edit these files to customize the prompt language.
+
+#### Git Command Blocking
+
+Git mutation commands (push, commit, merge, rebase, etc.) are **permanently blocked in all modes**. Read-only commands (status, diff, log) are always allowed. Both lists are customizable in `hook-config.json`.
+
+### Customizable Rules
+
+Rules in `.chainlink/rules/` control what gets injected into AI prompts:
+
+| File | Purpose |
+|------|---------|
+| `global.md` | Security, correctness, and style rules |
+| `tracking-strict.md` | Strict mode issue tracking instructions |
+| `tracking-normal.md` | Normal mode issue tracking instructions |
+| `tracking-relaxed.md` | Relaxed mode tracking reference |
+| `project.md` | Your project-specific rules |
+| `rust.md`, `python.md`, etc. | Language-specific best practices |
+
+Edit any file and changes take effect on the next prompt. Reset with `chainlink init --force`.
 
 ## Development
 

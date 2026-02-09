@@ -37,6 +37,7 @@ context-compression resilience.
 - Database schema v7→v8 migration (adds `last_action` column to sessions, auto-applied on first use)
 
 ### Added
+- Update READMEs with hook configuration documentation (#119)
 - Split tracking instructions into per-mode markdown files (#118)
 - Make issue tracking strictness configurable (#117)
 - Make blocked git commands user-configurable in work-check hook (#116)

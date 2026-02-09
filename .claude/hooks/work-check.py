@@ -32,21 +32,31 @@ DEFAULT_ALLOWED_BASH = [
 
 
 def load_config(chainlink_dir):
-    """Load hook config from .chainlink/hook-config.json, falling back to defaults."""
+    """Load hook config from .chainlink/hook-config.json, falling back to defaults.
+
+    Returns (tracking_mode, blocked_git, allowed_bash).
+    tracking_mode is one of: "strict", "normal", "relaxed".
+      strict  — block Write/Edit/Bash without an active issue
+      normal  — remind (print warning) but don't block
+      relaxed — no issue-tracking enforcement, only git blocks
+    """
     blocked = list(DEFAULT_BLOCKED_GIT)
     allowed = list(DEFAULT_ALLOWED_BASH)
+    mode = "strict"
 
     if not chainlink_dir:
-        return blocked, allowed
+        return mode, blocked, allowed
 
     config_path = os.path.join(chainlink_dir, "hook-config.json")
     if not os.path.isfile(config_path):
-        return blocked, allowed
+        return mode, blocked, allowed
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
+        if config.get("tracking_mode") in ("strict", "normal", "relaxed"):
+            mode = config["tracking_mode"]
         if "blocked_git_commands" in config:
             blocked = config["blocked_git_commands"]
         if "allowed_bash_prefixes" in config:
@@ -54,7 +64,7 @@ def load_config(chainlink_dir):
     except (json.JSONDecodeError, OSError):
         pass
 
-    return blocked, allowed
+    return mode, blocked, allowed
 
 
 def find_chainlink_dir():
@@ -119,9 +129,9 @@ def main():
         sys.exit(0)
 
     chainlink_dir = find_chainlink_dir()
-    blocked_git, allowed_bash = load_config(chainlink_dir)
+    tracking_mode, blocked_git, allowed_bash = load_config(chainlink_dir)
 
-    # PERMANENT BLOCK: git mutation commands are never allowed
+    # PERMANENT BLOCK: git mutation commands are never allowed (all modes)
     if tool_name == 'Bash' and is_blocked_git(input_data, blocked_git):
         print(
             "DENIED: Git mutation commands are not allowed. "
@@ -134,6 +144,11 @@ def main():
     # Allow read-only / infrastructure Bash commands through
     if tool_name == 'Bash' and is_allowed_bash(input_data, allowed_bash):
         sys.exit(0)
+
+    # Relaxed mode: no issue-tracking enforcement
+    if tracking_mode == "relaxed":
+        sys.exit(0)
+
     if not chainlink_dir:
         sys.exit(0)
 
@@ -147,16 +162,23 @@ def main():
     if "Working on: #" in status:
         sys.exit(0)
 
-    # BLOCK: no active work item
-    print(
-        "BLOCKED: No active chainlink issue. "
+    # No active work item — behavior depends on mode
+    nudge_msg = (
+        "No active chainlink issue. "
         "Create and work on an issue before making changes.\n\n"
         "  chainlink quick \"<describe your task>\" -p <priority> -l <label>\n\n"
         "Or pick an existing issue:\n"
         "  chainlink list -s open\n"
         "  chainlink session work <id>"
     )
-    sys.exit(2)
+
+    if tracking_mode == "strict":
+        print(f"BLOCKED: {nudge_msg}")
+        sys.exit(2)
+    else:
+        # normal mode: remind but allow
+        print(f"Reminder: {nudge_msg}")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

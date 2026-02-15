@@ -89,11 +89,11 @@ const RULE_FILES: &[(&str, &str)] = &[
 /// Returns a list of warnings (e.g. overwritten keys) for the caller to display.
 fn write_mcp_json_merged(mcp_path: &Path) -> Result<Vec<String>> {
     let embedded: serde_json::Value = serde_json::from_str(MCP_JSON)
-        .expect("embedded MCP_JSON is not valid JSON — this is a build defect");
+        .context("embedded MCP_JSON is not valid JSON — this is a build defect")?;
     let src_servers = embedded
         .get("mcpServers")
         .and_then(|v| v.as_object())
-        .expect("embedded MCP_JSON missing mcpServers object — this is a build defect");
+        .context("embedded MCP_JSON missing mcpServers object — this is a build defect")?;
 
     let mut obj = match fs::read_to_string(mcp_path) {
         Ok(raw) => {

@@ -17,15 +17,19 @@ const SAFE_FETCH_SERVER_PY: &str = include_str!("../../resources/claude/mcp/safe
 const MCP_JSON: &str = include_str!("../../resources/mcp.json");
 
 // Embed sanitization patterns
-const SANITIZE_PATTERNS: &str = include_str!("../../resources/chainlink/rules/sanitize-patterns.txt");
+const SANITIZE_PATTERNS: &str =
+    include_str!("../../resources/chainlink/rules/sanitize-patterns.txt");
 
 // Embed hook configuration
 const HOOK_CONFIG_JSON: &str = include_str!("../../resources/chainlink/hook-config.json");
 
 // Embed tracking mode rule files
-const RULE_TRACKING_STRICT: &str = include_str!("../../resources/chainlink/rules/tracking-strict.md");
-const RULE_TRACKING_NORMAL: &str = include_str!("../../resources/chainlink/rules/tracking-normal.md");
-const RULE_TRACKING_RELAXED: &str = include_str!("../../resources/chainlink/rules/tracking-relaxed.md");
+const RULE_TRACKING_STRICT: &str =
+    include_str!("../../resources/chainlink/rules/tracking-strict.md");
+const RULE_TRACKING_NORMAL: &str =
+    include_str!("../../resources/chainlink/rules/tracking-normal.md");
+const RULE_TRACKING_RELAXED: &str =
+    include_str!("../../resources/chainlink/rules/tracking-relaxed.md");
 
 // Embed rule files at compile time from resources/chainlink/rules/
 const RULE_GLOBAL: &str = include_str!("../../resources/chainlink/rules/global.md");
@@ -34,8 +38,10 @@ const RULE_RUST: &str = include_str!("../../resources/chainlink/rules/rust.md");
 const RULE_PYTHON: &str = include_str!("../../resources/chainlink/rules/python.md");
 const RULE_JAVASCRIPT: &str = include_str!("../../resources/chainlink/rules/javascript.md");
 const RULE_TYPESCRIPT: &str = include_str!("../../resources/chainlink/rules/typescript.md");
-const RULE_TYPESCRIPT_REACT: &str = include_str!("../../resources/chainlink/rules/typescript-react.md");
-const RULE_JAVASCRIPT_REACT: &str = include_str!("../../resources/chainlink/rules/javascript-react.md");
+const RULE_TYPESCRIPT_REACT: &str =
+    include_str!("../../resources/chainlink/rules/typescript-react.md");
+const RULE_JAVASCRIPT_REACT: &str =
+    include_str!("../../resources/chainlink/rules/javascript-react.md");
 const RULE_GO: &str = include_str!("../../resources/chainlink/rules/go.md");
 const RULE_JAVA: &str = include_str!("../../resources/chainlink/rules/java.md");
 const RULE_C: &str = include_str!("../../resources/chainlink/rules/c.md");

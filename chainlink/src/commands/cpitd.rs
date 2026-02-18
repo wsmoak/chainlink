@@ -65,11 +65,7 @@ fn suggest_install() -> Result<()> {
 // Running cpitd
 // ---------------------------------------------------------------------------
 
-fn run_cpitd(
-    paths: &[String],
-    min_tokens: u32,
-    ignore_patterns: &[String],
-) -> Result<CpitdOutput> {
+fn run_cpitd(paths: &[String], min_tokens: u32, ignore_patterns: &[String]) -> Result<CpitdOutput> {
     let mut cmd = Command::new("cpitd");
 
     if paths.is_empty() {
@@ -89,8 +85,7 @@ fn run_cpitd(
 
     let output = cmd.output().context("Failed to execute cpitd")?;
 
-    let stdout = String::from_utf8(output.stdout)
-        .context("cpitd output is not valid UTF-8")?;
+    let stdout = String::from_utf8(output.stdout).context("cpitd output is not valid UTF-8")?;
 
     if stdout.trim().is_empty() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -170,17 +165,11 @@ fn format_clone_description(report: &CpitdCloneReport) -> String {
         ));
     }
 
-    desc.push_str(
-        "\nConsider extracting shared logic into a common function or module.",
-    );
+    desc.push_str("\nConsider extracting shared logic into a common function or module.");
     desc
 }
 
-fn create_clone_issue(
-    db: &Database,
-    report: &CpitdCloneReport,
-    quiet: bool,
-) -> Result<i64> {
+fn create_clone_issue(db: &Database, report: &CpitdCloneReport, quiet: bool) -> Result<i64> {
     let title = format!(
         "Code clone: {} <-> {} ({} lines)",
         shorten_path(&report.file_a),
@@ -247,10 +236,7 @@ pub fn scan(
     }
 
     if !quiet {
-        println!(
-            "Found {} clone pair(s).\n",
-            output.total_pairs
-        );
+        println!("Found {} clone pair(s).\n", output.total_pairs);
     }
 
     if dry_run {

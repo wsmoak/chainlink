@@ -52,8 +52,8 @@ cargo install --path .
 # The binary will be at ~/.cargo/bin
 ```
 
-```
-# Or build without installing 
+```bash
+# Or build without installing
 
 cargo build --release
 # The binary will be at target/release/chainlink
